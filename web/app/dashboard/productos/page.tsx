@@ -294,7 +294,7 @@ export default function ProductosPage() {
                     {eliminando ? "Eliminando..." : "Eliminar"}
                   </button>
                 </div>
-              </div>
+              </div>cd 
             </div>
           )}
         </div>

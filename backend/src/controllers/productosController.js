@@ -17,6 +17,38 @@ const getProductos = async (req, res) => {
   }
 };
 
+// GET /api/productos/:id
+const getProductoById = async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+
+    if (isNaN(id) || id <= 0) {
+      return res.status(400).json({
+        ok: false,
+        message: "ID de producto inválido",
+      });
+    }
+
+    const producto = await obtenerProductoPorId(id);
+
+    if (!producto) {
+      return res.status(404).json({
+        ok: false,
+        message: "Producto no encontrado",
+      });
+    }
+
+    res.json(producto);
+  } catch (err) {
+    console.error("Error al obtener producto:", err.message);
+
+    res.status(500).json({
+      ok: false,
+      message: "Error al consultar el producto",
+    });
+  }
+};
+
 // POST /api/productos
 const createProducto = async (req, res) => {
   try {
@@ -180,4 +212,4 @@ const deleteProducto = async (req, res) => {
   }
 };
 
-module.exports = { getProductos, createProducto, updateProducto, deleteProducto };
+module.exports = { getProductos, getProductoById, createProducto, updateProducto, deleteProducto };

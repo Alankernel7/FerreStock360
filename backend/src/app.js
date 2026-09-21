@@ -9,6 +9,7 @@ const dbTestRoutes = require("./routes/dbTest");
 const productosRoutes = require("./routes/productos");
 const categoriasRoutes = require("./routes/categorias");
 const dashboardRoutes = require("./routes/dashboard");
+const authRoutes = require("./routes/auth");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -27,6 +28,7 @@ app.use("/api", dbTestRoutes);
 app.use("/api", productosRoutes);
 app.use("/api", categoriasRoutes);
 app.use("/api", dashboardRoutes);
+app.use("/api", authRoutes);
 
 // Iniciar servidor
 app.listen(PORT, () => {

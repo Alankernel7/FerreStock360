@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { obtenerProductos } from "@/services/productosService";
+import { obtenerProductos, eliminarProducto, } from "@/services/productosService";
 import type { Producto } from "@/types/producto";
 import Link from "next/link";
 
@@ -9,6 +9,9 @@ export default function ProductosPage() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [productoAEliminar, setProductoAEliminar] = useState<Producto | null>(null);
+  const [eliminando, setEliminando] = useState(false);
+  const [mensaje, setMensaje] = useState<string | null>(null);
 
   useEffect(() => {
     const cargarProductos = async () => {
@@ -29,6 +32,40 @@ export default function ProductosPage() {
 
     cargarProductos();
   }, []);
+
+    const handleEliminar = async () => {
+    if (!productoAEliminar) return;
+
+    try {
+      setEliminando(true);
+      setError(null);
+      setMensaje(null);
+
+      const mensajeRespuesta = await eliminarProducto(
+        productoAEliminar.id_producto
+      );
+
+      setProductos((productosActuales) =>
+        productosActuales.filter(
+          (producto) =>
+            producto.id_producto !== productoAEliminar.id_producto
+        )
+      );
+
+      setMensaje(mensajeRespuesta);
+      setProductoAEliminar(null);
+    } catch (err) {
+      const mensajeError =
+        err instanceof Error
+          ? err.message
+          : "Ocurrió un error al eliminar el producto.";
+
+      setError(mensajeError);
+      setProductoAEliminar(null);
+    } finally {
+      setEliminando(false);
+    }
+  };
 
   return (
     <div>
@@ -104,6 +141,18 @@ export default function ProductosPage() {
                   </th>
                 </tr>
               </thead>
+
+              {mensaje && (
+                <div className="mb-6 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
+                  {mensaje}
+                </div>
+              )}
+
+              {error && !cargando && (
+                <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                  {error}
+                </div>
+              )}
 
               <tbody>
                 {productos.map((producto) => (
@@ -194,6 +243,7 @@ export default function ProductosPage() {
 
                         <button
                           type="button"
+                          onClick={() => setProductoAEliminar(producto)}
                           className="px-3 py-1.5 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition"
                         >
                           Eliminar
@@ -207,6 +257,47 @@ export default function ProductosPage() {
           </div>
         </div>
       )}
+      {productoAEliminar && (
+      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+        <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+          <h2 className="text-xl font-bold text-ferro-black mb-3">
+            Eliminar producto
+          </h2>
+
+          <p className="text-gray-600 mb-6">
+            ¿Estás seguro de que deseas eliminar{" "}
+            <span className="font-semibold">
+              {productoAEliminar.nombre}
+            </span>
+            ?
+          </p>
+
+          <p className="text-sm text-gray-500 mb-6">
+            Esta acción no se puede deshacer.
+          </p>
+
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              disabled={eliminando}
+              onClick={() => setProductoAEliminar(null)}
+              className="px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+
+            <button
+              type="button"
+              disabled={eliminando}
+              onClick={handleEliminar}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+            >
+              {eliminando ? "Eliminando..." : "Eliminar"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     </div>
   );
 }

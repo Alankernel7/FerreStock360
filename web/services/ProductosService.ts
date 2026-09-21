@@ -84,3 +84,19 @@ export async function actualizarProducto(
 
   return respuesta.data;
 }
+
+export async function eliminarProducto(id: number): Promise<string> {
+  const response = await fetch(`${API_URL}/productos/${id}`, {
+    method: "DELETE",
+  });
+
+  const resultado = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      resultado.message || "No se pudo eliminar el producto"
+    );
+  }
+
+  return resultado.message;
+}

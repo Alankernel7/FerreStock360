@@ -3,6 +3,7 @@
 
 require("dotenv").config();
 const express = require("express");
+const cors = require("cors");
 const healthRoutes = require("./routes/health");
 const dbTestRoutes = require("./routes/dbTest");
 const productosRoutes = require("./routes/productos");

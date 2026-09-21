@@ -20,7 +20,7 @@ const getProductos = async (req, res) => {
 // POST /api/productos
 const createProducto = async (req, res) => {
   try {
-    const { nombre, descripcion, codigo, precio, stock_actual, stock_minimo, id_categoria, estado } = req.body;
+    const { nombre, descripcion, codigo, precio, imagen_url, stock_actual, stock_minimo, id_categoria, estado } = req.body;
 
     // Validaciones de campos obligatorios
     if (!nombre || !nombre.trim()) {
@@ -42,6 +42,7 @@ const createProducto = async (req, res) => {
       descripcion,
       codigo: codigo.trim(),
       precio: Number(precio),
+      imagen_url: imagen_url?.trim() || null,
       stock_actual: stock_actual !== undefined ? Number(stock_actual) : 0,
       stock_minimo: stock_minimo !== undefined ? Number(stock_minimo) : 5,
       id_categoria: Number(id_categoria),
@@ -87,7 +88,7 @@ const updateProducto = async (req, res) => {
     }
 
     // Recibe los datos del body
-    const { nombre, descripcion, codigo, precio, stock_actual, stock_minimo, id_categoria, estado } = req.body;
+    const { nombre, descripcion, codigo, precio, imagen_url, stock_actual, stock_minimo, id_categoria, estado } = req.body;
 
     // Validaciones de campos obligatorios
     if (!nombre || !nombre.trim()) {
@@ -108,7 +109,10 @@ const updateProducto = async (req, res) => {
       nombre: nombre.trim(),
       descripcion,
       codigo: codigo.trim(),
-      precio: Number(precio),
+      precio: Number(precio),imagen_url:
+      imagen_url !== undefined
+        ? imagen_url?.trim() || null
+        : existente.imagen_url,
       stock_actual: stock_actual !== undefined ? Number(stock_actual) : existente.stock_actual,
       stock_minimo: stock_minimo !== undefined ? Number(stock_minimo) : existente.stock_minimo,
       id_categoria: Number(id_categoria),

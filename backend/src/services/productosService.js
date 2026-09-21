@@ -29,14 +29,15 @@ const crearProducto = async (datos) => {
     .input("descripcion", sql.NVarChar(500), datos.descripcion || null)
     .input("codigo", sql.NVarChar(50), datos.codigo)
     .input("precio", sql.Decimal(10, 2), datos.precio)
+    .input("imagen_url", sql.NVarChar(500), datos.imagen_url)
     .input("stock_actual", sql.Int, datos.stock_actual || 0)
     .input("stock_minimo", sql.Int, datos.stock_minimo || 5)
     .input("id_categoria", sql.Int, datos.id_categoria)
     .input("estado", sql.Bit, datos.estado !== undefined ? datos.estado : 1)
     .query(`
-      INSERT INTO productos (nombre, descripcion, codigo, precio, stock_actual, stock_minimo, id_categoria, estado)
+      INSERT INTO productos (nombre, descripcion, codigo, precio, imagen_url, stock_actual, stock_minimo, id_categoria, estado)
       OUTPUT INSERTED.*
-      VALUES (@nombre, @descripcion, @codigo, @precio, @stock_actual, @stock_minimo, @id_categoria, @estado)
+      VALUES (@nombre, @descripcion, @codigo, @precio, @imagen_url, @stock_actual, @stock_minimo, @id_categoria, @estado)
     `);
   return result.recordset[0];
 };
@@ -51,6 +52,7 @@ const actualizarProducto = async (id, datos) => {
     .input("descripcion", sql.NVarChar(500), datos.descripcion || null)
     .input("codigo", sql.NVarChar(50), datos.codigo)
     .input("precio", sql.Decimal(10, 2), datos.precio)
+    .input("imagen_url", sql.NVarChar(500), datos.imagen_url)
     .input("stock_actual", sql.Int, datos.stock_actual)
     .input("stock_minimo", sql.Int, datos.stock_minimo)
     .input("id_categoria", sql.Int, datos.id_categoria)
@@ -61,6 +63,7 @@ const actualizarProducto = async (id, datos) => {
           descripcion = @descripcion,
           codigo = @codigo,
           precio = @precio,
+          imagen_url = @imagen_url,
           stock_actual = @stock_actual,
           stock_minimo = @stock_minimo,
           id_categoria = @id_categoria,

@@ -1,21 +1,28 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 
-import { crearProducto } from "@/services/productosService";
+import {
+  obtenerProductoPorId,
+  actualizarProducto,
+} from "@/services/productosService";
+
 import { obtenerCategorias } from "@/services/categoriasService";
 
 import type { Categoria } from "@/types/categoria";
 
-export default function NuevoProductoPage() {
+export default function EditarProductoPage() {
+  const params = useParams();
   const router = useRouter();
 
-  const [categorias, setCategorias] = useState<Categoria[]>([]);
-  const [cargandoCategorias, setCargandoCategorias] = useState(true);
-  const [guardando, setGuardando] = useState(false);
+  const id = Number(params.id);
 
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+
+  const [cargando, setCargando] = useState(true);
+  const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [nombre, setNombre] = useState("");
@@ -29,22 +36,48 @@ export default function NuevoProductoPage() {
   const [estado, setEstado] = useState(true);
 
   useEffect(() => {
-    const cargarCategorias = async () => {
+    const cargarDatos = async () => {
+      if (isNaN(id) || id <= 0) {
+        setError("ID de producto inválido.");
+        setCargando(false);
+        return;
+      }
+
       try {
-        const datos = await obtenerCategorias();
-        setCategorias(datos);
+        const [producto, categoriasData] = await Promise.all([
+          obtenerProductoPorId(id),
+          obtenerCategorias(),
+        ]);
+
+        setCategorias(categoriasData);
+
+        setNombre(producto.nombre);
+        setDescripcion(producto.descripcion ?? "");
+        setCodigo(producto.codigo);
+        setPrecio(String(producto.precio));
+        setImagenUrl(producto.imagen_url ?? "");
+        setStockActual(String(producto.stock_actual));
+        setStockMinimo(String(producto.stock_minimo));
+        setIdCategoria(String(producto.id_categoria));
+        setEstado(Boolean(producto.estado));
       } catch (err) {
-        console.error("Error al cargar categorías:", err);
-        setError("No se pudieron cargar las categorías.");
+        const mensaje =
+          err instanceof Error
+            ? err.message
+            : "No se pudo cargar el producto.";
+
+        setError(mensaje);
       } finally {
-        setCargandoCategorias(false);
+        setCargando(false);
       }
     };
 
-    cargarCategorias();
-  }, []);
+    cargarDatos();
+  }, [id]);
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (
+    event: FormEvent<HTMLFormElement>
+  ) => {
     event.preventDefault();
 
     setError(null);
@@ -77,7 +110,7 @@ export default function NuevoProductoPage() {
     try {
       setGuardando(true);
 
-      await crearProducto({
+      await actualizarProducto(id, {
         nombre: nombre.trim(),
         descripcion: descripcion.trim(),
         codigo: codigo.trim(),
@@ -94,13 +127,27 @@ export default function NuevoProductoPage() {
       const mensaje =
         err instanceof Error
           ? err.message
-          : "Ocurrió un error al registrar el producto.";
+          : "Ocurrió un error al actualizar el producto.";
 
       setError(mensaje);
     } finally {
       setGuardando(false);
     }
   };
+
+  if (cargando) {
+    return (
+      <div>
+        <h1 className="text-2xl font-bold text-ferro-black mb-4">
+          Editar producto
+        </h1>
+
+        <p className="text-gray-500">
+          Cargando producto...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -113,11 +160,11 @@ export default function NuevoProductoPage() {
         </Link>
 
         <h1 className="text-2xl font-bold text-ferro-black mt-3">
-          Nuevo producto
+          Editar producto
         </h1>
 
         <p className="text-gray-500 mt-1">
-          Registra un nuevo producto en el inventario.
+          Modifica la información del producto seleccionado.
         </p>
       </div>
 
@@ -142,7 +189,6 @@ export default function NuevoProductoPage() {
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
               className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ferro-yellow"
-              placeholder="Ej. Taladro inalámbrico"
             />
           </div>
 
@@ -156,7 +202,6 @@ export default function NuevoProductoPage() {
               value={codigo}
               onChange={(e) => setCodigo(e.target.value)}
               className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ferro-yellow"
-              placeholder="Ej. HER-010"
             />
           </div>
 
@@ -172,7 +217,6 @@ export default function NuevoProductoPage() {
               value={precio}
               onChange={(e) => setPrecio(e.target.value)}
               className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ferro-yellow"
-              placeholder="0.00"
             />
           </div>
 
@@ -184,13 +228,10 @@ export default function NuevoProductoPage() {
             <select
               value={idCategoria}
               onChange={(e) => setIdCategoria(e.target.value)}
-              disabled={cargandoCategorias}
               className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ferro-yellow"
             >
               <option value="">
-                {cargandoCategorias
-                  ? "Cargando categorías..."
-                  : "Selecciona una categoría"}
+                Selecciona una categoría
               </option>
 
               {categorias.map((categoria) => (
@@ -244,10 +285,6 @@ export default function NuevoProductoPage() {
               className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ferro-yellow"
               placeholder="/products/mi-producto.jpg"
             />
-
-            <p className="text-xs text-gray-400 mt-1">
-              La imagen debe existir dentro de web/public/products.
-            </p>
           </div>
 
           <div className="md:col-span-2">
@@ -260,7 +297,6 @@ export default function NuevoProductoPage() {
               onChange={(e) => setDescripcion(e.target.value)}
               rows={4}
               className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ferro-yellow resize-none"
-              placeholder="Descripción del producto..."
             />
           </div>
 
@@ -293,7 +329,7 @@ export default function NuevoProductoPage() {
             disabled={guardando}
             className="bg-ferro-yellow text-ferro-black font-semibold px-5 py-2 rounded-lg hover:opacity-90 transition disabled:opacity-50"
           >
-            {guardando ? "Guardando..." : "Guardar producto"}
+            {guardando ? "Guardando..." : "Guardar cambios"}
           </button>
         </div>
       </form>

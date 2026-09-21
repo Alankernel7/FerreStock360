@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { obtenerProductos } from "@/services/ProductosService";
+import { obtenerProductos } from "@/services/productosService";
 import type { Producto } from "@/types/producto";
 import Link from "next/link";
 
@@ -185,12 +185,12 @@ export default function ProductosPage() {
 
                     <td className="px-6 py-4">
                       <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
+                        <Link
+                          href={`/dashboard/productos/${producto.id_producto}/editar`}
                           className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:border-ferro-yellow transition"
                         >
                           Editar
-                        </button>
+                        </Link>
 
                         <button
                           type="button"

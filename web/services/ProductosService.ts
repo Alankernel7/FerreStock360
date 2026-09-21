@@ -1,6 +1,7 @@
 import type {
   Producto,
   CrearProductoData,
+  ActualizarProductoData,
   ProductoResponse,
 } from "@/types/producto";
 
@@ -19,6 +20,22 @@ export async function obtenerProductos(): Promise<Producto[]> {
   return productos;
 }
 
+export async function obtenerProductoPorId(
+  id: number
+): Promise<Producto> {
+  const response = await fetch(`${API_URL}/productos/${id}`);
+
+  const resultado = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      resultado.message || "No se pudo obtener el producto"
+    );
+  }
+
+  return resultado;
+}
+
 export async function crearProducto(
   producto: CrearProductoData
 ): Promise<Producto> {
@@ -35,6 +52,31 @@ export async function crearProducto(
   if (!response.ok) {
     throw new Error(
       resultado.message || "No se pudo registrar el producto"
+    );
+  }
+
+  const respuesta: ProductoResponse = resultado;
+
+  return respuesta.data;
+}
+
+export async function actualizarProducto(
+  id: number,
+  producto: ActualizarProductoData
+): Promise<Producto> {
+  const response = await fetch(`${API_URL}/productos/${id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(producto),
+  });
+
+  const resultado = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      resultado.message || "No se pudo actualizar el producto"
     );
   }
 

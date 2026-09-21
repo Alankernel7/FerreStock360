@@ -24,6 +24,18 @@ export interface CrearProductoData {
   estado: boolean;
 }
 
+export interface ActualizarProductoData {
+  nombre: string;
+  descripcion: string;
+  codigo: string;
+  precio: number;
+  imagen_url: string | null;
+  stock_actual: number;
+  stock_minimo: number;
+  id_categoria: number;
+  estado: boolean;
+}
+
 export interface ProductoResponse {
   ok: boolean;
   message: string;

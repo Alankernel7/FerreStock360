@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import ProductCard from "@/components/ProductCard";
-import { obtenerProductos } from "@/services/ProductosService";
+import { obtenerProductos } from "@/services/productosService";
 import type { Producto } from "@/types/producto";
 
 const categories = [

@@ -76,6 +76,7 @@ BEGIN
         descripcion NVARCHAR(500) NULL,
         codigo NVARCHAR(50) NOT NULL UNIQUE,
         precio DECIMAL(10,2) NOT NULL,
+        imagen_url NVARCHAR(500) NULL,
         stock_actual INT NOT NULL DEFAULT 0,
         stock_minimo INT NOT NULL DEFAULT 5,
         id_categoria INT NOT NULL,

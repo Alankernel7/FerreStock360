@@ -12,6 +12,11 @@ const categoriasRoutes = require("./routes/categorias");
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Permitir solicitudes desde el frontend
+app.use(cors({
+  origin: "http://localhost:3000",
+}));
+
 // Middleware para parsear JSON
 app.use(express.json());
 

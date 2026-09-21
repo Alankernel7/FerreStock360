@@ -1,8 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import ProductCard from "@/components/ProductCard";
+import { obtenerProductos } from "@/services/ProductosService";
+import type { Producto } from "@/types/producto";
 
 const categories = [
   "Herramientas",
@@ -13,19 +16,32 @@ const categories = [
   "Jardín",
 ];
 
-const products = [
-  { name: "Taladro Inalámbrico", price: 89.99, originalPrice: 119.99, rating: 5, badge: "Oferta" },
-  { name: "Martillo Profesional", price: 24.50, rating: 4 },
-  { name: "Sierra Circular", price: 145.00, originalPrice: 175.00, rating: 5, badge: "Nuevo" },
-  { name: "Destornillador Set", price: 18.99, rating: 4 },
-  { name: "Llave Inglesa 12\"", price: 15.75, rating: 3 },
-  { name: "Cinta Métrica 5m", price: 8.50, rating: 4 },
-  { name: "Nivel Láser", price: 67.00, originalPrice: 85.00, rating: 5 },
-  { name: "Juego de Brocas", price: 32.99, rating: 4 },
-  { name: "Compresor Portátil", price: 225.00, rating: 5, badge: "Popular" },
-];
 
 export default function HomePage() {
+  const [productos, setProductos] = useState<Producto[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const cargarProductos = async () => {
+      try {
+        setCargando(true);
+
+        const datos = await obtenerProductos();
+
+        setProductos(datos);
+        setError(null);
+      } catch (err) {
+        console.error("Error al cargar productos:", err);
+        setError("No se pudieron cargar los productos.");
+      } finally {
+        setCargando(false);
+      }
+    };
+
+    cargarProductos();
+  }, []);
+
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
@@ -87,16 +103,43 @@ export default function HomePage() {
               <div>
                 <h3 className="font-bold text-lg mb-4">FEATURED PRODUCTS</h3>
                 <div className="space-y-4">
-                  {products.slice(0, 3).map((p, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-ferro-light rounded-lg flex items-center justify-center flex-shrink-0">
-                        <svg className="w-6 h-6 text-ferro-gray" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                        </svg>
+                  {productos.slice(0, 3).map((producto) => (
+                    <div
+                      key={producto.id_producto}
+                      className="flex items-center gap-3"
+                    >
+                      <div className="w-12 h-12 bg-ferro-light rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
+                        {producto.imagen_url ? (
+                          <img
+                            src={producto.imagen_url}
+                            alt={producto.nombre}
+                            className="w-full h-full object-contain"
+                          />
+                        ) : (
+                          <svg
+                            className="w-6 h-6 text-ferro-gray"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+                            />
+                          </svg>
+                        )}
                       </div>
+
                       <div>
-                        <p className="text-sm font-medium">{p.name}</p>
-                        <p className="text-sm text-ferro-yellow font-bold">${p.price.toFixed(2)}</p>
+                        <p className="text-sm font-medium">
+                          {producto.nombre}
+                        </p>
+
+                        <p className="text-sm text-ferro-yellow font-bold">
+                          ${Number(producto.precio).toFixed(2)}
+                        </p>
                       </div>
                     </div>
                   ))}
@@ -106,7 +149,7 @@ export default function HomePage() {
 
             <div className="flex-1">
               <div className="flex items-center justify-between mb-6">
-                <p className="text-gray-500">Showing 1-9 of 9 results</p>
+                <p className="text-gray-500">{productos.length} productos encontrados</p>                
                 <select className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ferro-yellow">
                   <option>Default sorting</option>
                   <option>Price: Low to High</option>
@@ -115,9 +158,28 @@ export default function HomePage() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {products.map((product, index) => (
-                  <ProductCard key={index} {...product} />
-                ))}
+                {cargando ? (
+                  <p className="text-gray-500">
+                    Cargando productos...
+                  </p>
+                ) : error ? (
+                  <p className="text-red-500">
+                    {error}
+                  </p>
+                ) : productos.length === 0 ? (
+                  <p className="text-gray-500">
+                    No hay productos disponibles.
+                  </p>
+                ) : (
+                  productos.map((producto) => (
+                    <ProductCard
+                      key={producto.id_producto}
+                      name={producto.nombre}
+                      price={Number(producto.precio)}
+                      image={producto.imagen_url ?? undefined}
+                    />
+                  ))
+                )}
               </div>
 
               <div className="flex items-center gap-2 mt-8 justify-center">

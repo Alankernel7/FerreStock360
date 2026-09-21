@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { obtenerProductos } from "@/services/ProductosService";
 import type { Producto } from "@/types/producto";
+import Link from "next/link";
 
 export default function ProductosPage() {
   const [productos, setProductos] = useState<Producto[]>([]);
@@ -42,12 +43,12 @@ export default function ProductosPage() {
           </p>
         </div>
 
-        <button
-          type="button"
+        <Link
+          href="/dashboard/productos/nuevo"
           className="bg-ferro-yellow text-ferro-black font-semibold px-4 py-2 rounded-lg hover:opacity-90 transition"
         >
           + Nuevo producto
-        </button>
+        </Link>
       </div>
 
       {cargando ? (

@@ -12,7 +12,7 @@ const dbConfig = {
   password: process.env.DB_PASSWORD,
   port: parseInt(process.env.DB_PORT) || 1433,
   options: {
-    encrypt: false,
+    encrypt: true, // Para Azure SQL Server
     trustServerCertificate: true,
   },
 };

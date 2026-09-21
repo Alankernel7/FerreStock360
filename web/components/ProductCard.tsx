@@ -7,7 +7,7 @@ interface ProductCardProps {
   badge?: string;
 }
 
-export default function ProductCard({ name, price, originalPrice, rating = 0, badge }: ProductCardProps) {
+export default function ProductCard({ name, price, originalPrice, image, rating = 0, badge }: ProductCardProps) {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
       <div className="relative bg-ferro-light p-6 flex items-center justify-center h-48">
@@ -16,11 +16,29 @@ export default function ProductCard({ name, price, originalPrice, rating = 0, ba
             {badge}
           </span>
         )}
-        <div className="w-24 h-24 bg-ferro-gray/20 rounded-lg flex items-center justify-center">
-          <svg className="w-12 h-12 text-ferro-gray" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-          </svg>
-        </div>
+        {image ? (
+          <img
+            src={image}
+            alt={name}
+            className="w-full h-full object-contain"
+          />
+        ) : (
+          <div className="w-24 h-24 bg-ferro-gray/20 rounded-lg flex items-center justify-center">
+            <svg
+              className="w-12 h-12 text-ferro-gray"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+              />
+            </svg>
+          </div>
+        )}
       </div>
       <div className="p-4">
         <h3 className="font-medium text-ferro-black mb-2">{name}</h3>

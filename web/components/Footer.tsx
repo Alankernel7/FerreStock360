@@ -1,10 +1,35 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+import type { EstadisticasPublicas } from "@/types/estadisticasPublicas";
+
+import {
+  obtenerEstadisticasPublicas,
+} from "@/services/estadisticasPublicasService";
 
 export default function Footer() {
   const [email, setEmail] = useState("");
+
+  const [estadisticas, setEstadisticas] =
+  useState<EstadisticasPublicas | null>(null);
+
+useEffect(() => {
+  const cargarEstadisticas = async () => {
+    try {
+      const data = await obtenerEstadisticasPublicas();
+      setEstadisticas(data);
+    } catch (error) {
+      console.error(
+        "No se pudieron cargar las estadísticas:",
+        error
+      );
+    }
+  };
+
+  cargarEstadisticas();
+}, []);
 
   return (
     <footer className="bg-ferro-black text-white">
@@ -18,7 +43,7 @@ export default function Footer() {
               Tu ferretería, siempre contigo. Gestión de inventario inteligente para tu negocio.
             </p>
             <div className="flex items-center gap-4 mt-4">
-              <span className="text-2xl font-bold text-ferro-yellow">360+</span>
+              <span className="text-2xl font-bold text-ferro-yellow">{estadisticas  ? estadisticas.total_productos : "—"}+</span>
               <span className="text-sm text-gray-400">Productos</span>
             </div>
           </div>

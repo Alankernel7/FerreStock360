@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+import type { EstadisticasPublicas } from "@/types/estadisticasPublicas";
+
+import {
+  obtenerEstadisticasPublicas,
+} from "@/services/estadisticasPublicasService";
 
 export default function RegisterPage() {
   const [name, setName] = useState("");
@@ -9,6 +15,23 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [estadisticas, setEstadisticas] =  useState<EstadisticasPublicas | null>(null);
+
+  useEffect(() => {
+    const cargarEstadisticas = async () => {
+      try {
+        const data = await obtenerEstadisticasPublicas();
+        setEstadisticas(data);
+      } catch (error) {
+        console.error(
+          "No se pudieron cargar las estadísticas:",
+          error
+        );
+      }
+    };
+
+    cargarEstadisticas();
+  }, []);
 
   return (
     <div className="min-h-screen flex">
@@ -25,11 +48,11 @@ export default function RegisterPage() {
           <p className="text-gray-400 text-lg">Únete y gestiona tu inventario</p>
           <div className="flex gap-8 mt-12">
             <div className="text-center">
-              <p className="text-3xl font-bold text-ferro-yellow">360+</p>
+              <p className="text-3xl font-bold text-ferro-yellow">{estadisticas  ? estadisticas.total_productos : "—"}+</p>
               <p className="text-sm text-gray-400">Productos</p>
             </div>
             <div className="text-center">
-              <p className="text-3xl font-bold text-ferro-yellow">50+</p>
+              <p className="text-3xl font-bold text-ferro-yellow">{estadisticas ? estadisticas.total_categorias : "—"}+</p>
               <p className="text-sm text-gray-400">Categorías</p>
             </div>
             <div className="text-center">

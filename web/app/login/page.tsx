@@ -1,10 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { iniciarSesion } from "@/services/authService";
+
+import type { EstadisticasPublicas } from "@/types/estadisticasPublicas";
+
+import {
+  obtenerEstadisticasPublicas,
+} from "@/services/estadisticasPublicasService";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,6 +22,27 @@ export default function LoginPage() {
   const [recordarme, setRecordarme] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [estadisticas, setEstadisticas] =
+  useState<EstadisticasPublicas | null>(null);
+
+  useEffect(() => {
+    const cargarEstadisticas = async () => {
+      try {
+        const data =
+          await obtenerEstadisticasPublicas();
+
+        setEstadisticas(data);
+      } catch (error) {
+        console.error(
+          "No se pudieron cargar las estadísticas:",
+          error
+        );
+      }
+    };
+
+    cargarEstadisticas();
+  }, []);
 
   const handleSubmit = async (
     event: FormEvent<HTMLFormElement>
@@ -101,11 +128,11 @@ export default function LoginPage() {
           <p className="text-gray-400 text-lg">Tu ferretería, siempre contigo</p>
           <div className="flex gap-8 mt-12">
             <div className="text-center">
-              <p className="text-3xl font-bold text-ferro-yellow">360+</p>
+              <p className="text-3xl font-bold text-ferro-yellow">{estadisticas  ? estadisticas.total_productos : "—"}+</p>
               <p className="text-sm text-gray-400">Productos</p>
             </div>
             <div className="text-center">
-              <p className="text-3xl font-bold text-ferro-yellow">50+</p>
+              <p className="text-3xl font-bold text-ferro-yellow">{estadisticas ? estadisticas.total_categorias : "—"}+</p>
               <p className="text-sm text-gray-400">Categorías</p>
             </div>
             <div className="text-center">

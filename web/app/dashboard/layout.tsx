@@ -51,7 +51,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen bg-ferro-light">
-      <Sidebar />
+      <Sidebar usuario={usuario} />
       <div className="flex-1 flex flex-col">
         <header className="bg-white border-b border-gray-100 px-6 py-4">
           <div className="flex items-center justify-between">

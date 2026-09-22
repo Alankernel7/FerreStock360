@@ -61,3 +61,15 @@ export function obtenerUsuarioGuardado(): UsuarioAutenticado | null {
     return null;
   }
 }
+
+export function cerrarSesion(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  localStorage.removeItem("auth_token");
+  localStorage.removeItem("usuario");
+
+  sessionStorage.removeItem("auth_token");
+  sessionStorage.removeItem("usuario");
+}

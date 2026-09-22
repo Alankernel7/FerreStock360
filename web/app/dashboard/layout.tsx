@@ -2,7 +2,53 @@
 
 import Sidebar from "@/components/Sidebar";
 
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+
+import type { UsuarioAutenticado } from "@/types/auth";
+
+import {
+  obtenerToken,
+  obtenerUsuarioGuardado,
+} from "@/services/authService";
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  
+  const router = useRouter();
+
+  const [usuario, setUsuario] =
+    useState<UsuarioAutenticado | null>(null);
+
+  const [verificando, setVerificando] = useState(true);
+
+  useEffect(() => {
+    const token = obtenerToken();
+    const usuarioGuardado = obtenerUsuarioGuardado();
+
+    if (!token || !usuarioGuardado) {
+      router.replace("/login");
+      return;
+    }
+
+    if (usuarioGuardado.rol !== "admin") {
+      router.replace("/");
+      return;
+    }
+
+    setUsuario(usuarioGuardado);
+    setVerificando(false);
+  }, [router]);
+
+  if (verificando || !usuario) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-ferro-light">
+        <p className="text-gray-500">
+          Verificando sesión...
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen bg-ferro-light">
       <Sidebar />
@@ -25,11 +71,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </button>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-ferro-yellow rounded-full flex items-center justify-center">
-                  <span className="text-ferro-black font-bold text-sm">A</span>
+                  <span className="text-ferro-black font-bold text-sm">{usuario.nombre.charAt(0).toUpperCase()}</span>
                 </div>
                 <div className="hidden md:block">
-                  <p className="text-sm font-medium">Administrador</p>
-                  <p className="text-xs text-gray-500">admin@ferrestock.com</p>
+                  <p className="text-sm font-medium">{usuario.nombre}</p>
+                  <p className="text-xs text-gray-500">{usuario.email}</p>
                 </div>
               </div>
             </div>

@@ -5,6 +5,8 @@ import type {
   ProductoResponse,
 } from "@/types/producto";
 
+import { obtenerToken } from "@/services/authService";
+
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
 
@@ -39,10 +41,16 @@ export async function obtenerProductoPorId(
 export async function crearProducto(
   producto: CrearProductoData
 ): Promise<Producto> {
-  const response = await fetch(`${API_URL}/productos`, {
+  const token = obtenerToken();
+
+  if (!token) {
+    throw new Error("No hay una sesión activa");
+  }
+    const response = await fetch(`${API_URL}/productos`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(producto),
   });
@@ -64,10 +72,16 @@ export async function actualizarProducto(
   id: number,
   producto: ActualizarProductoData
 ): Promise<Producto> {
+  const token = obtenerToken();
+
+  if (!token) {
+    throw new Error("No hay una sesión activa");
+  }
   const response = await fetch(`${API_URL}/productos/${id}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(producto),
   });
@@ -86,8 +100,16 @@ export async function actualizarProducto(
 }
 
 export async function eliminarProducto(id: number): Promise<string> {
+  const token = obtenerToken();
+
+  if (!token) {
+    throw new Error("No hay una sesión activa");
+  }
   const response = await fetch(`${API_URL}/productos/${id}`, {
     method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
   });
 
   const resultado = await response.json();

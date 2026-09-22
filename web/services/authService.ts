@@ -62,6 +62,32 @@ export function obtenerUsuarioGuardado(): UsuarioAutenticado | null {
   }
 }
 
+export async function registrarUsuario(
+  nombre: string,
+  email: string,
+  password: string
+): Promise<void> {
+  const response = await fetch(`${API_URL}/auth/register`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      nombre,
+      email,
+      password,
+    }),
+  });
+
+  const resultado = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      resultado.message || "No se pudo crear la cuenta"
+    );
+  }
+}
+
 export function cerrarSesion(): void {
   if (typeof window === "undefined") {
     return;

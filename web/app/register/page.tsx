@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import type { EstadisticasPublicas } from "@/types/estadisticasPublicas";
 
@@ -9,13 +10,19 @@ import {
   obtenerEstadisticasPublicas,
 } from "@/services/estadisticasPublicasService";
 
+import { registrarUsuario } from "@/services/authService";
+
 export default function RegisterPage() {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [estadisticas, setEstadisticas] =  useState<EstadisticasPublicas | null>(null);
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [mensaje, setMensaje] = useState<string | null>(null);
 
   useEffect(() => {
     const cargarEstadisticas = async () => {
@@ -33,6 +40,66 @@ export default function RegisterPage() {
     cargarEstadisticas();
   }, []);
 
+  const handleSubmit = async (
+    event: FormEvent<HTMLFormElement> ) => { event.preventDefault();
+
+    setError(null);
+    setMensaje(null);
+
+    if (!name.trim()) {
+      setError("Ingresa tu nombre.");
+      return;
+    }
+
+    if (!email.trim()) {
+      setError("Ingresa tu correo electrónico.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError(
+        "La contraseña debe tener al menos 6 caracteres."
+      );
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Las contraseñas no coinciden.");
+      return;
+    }
+
+    try {
+      setCargando(true);
+
+      await registrarUsuario(
+        name.trim(),
+        email.trim().toLowerCase(),
+        password
+      );
+
+      setMensaje(
+        "Cuenta creada correctamente. Redirigiendo al inicio de sesión..."
+      );
+
+      setName("");
+      setEmail("");
+      setPassword("");
+      setConfirmPassword("");
+
+      setTimeout(() => {
+        router.push("/login");
+      }, 1500);
+    } catch (err) {
+      const mensajeError =
+        err instanceof Error
+          ? err.message
+          : "Ocurrió un error al crear la cuenta.";
+
+      setError(mensajeError);
+    } finally {
+      setCargando(false);
+    }
+  };
   return (
     <div className="min-h-screen flex">
       <div className="hidden lg:flex lg:w-1/2 bg-ferro-black relative overflow-hidden">
@@ -74,7 +141,18 @@ export default function RegisterPage() {
           <h2 className="text-2xl font-bold text-ferro-black mb-2">Crea tu cuenta</h2>
           <p className="text-gray-500 mb-8">Únete y gestiona tu inventario</p>
 
-          <form className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                {error}
+              </div>
+            )}
+
+            {mensaje && (
+              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
+                {mensaje}
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Nombre completo</label>
               <input
@@ -82,6 +160,7 @@ export default function RegisterPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Tu nombre"
+                required
                 className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ferro-yellow focus:border-transparent"
               />
             </div>
@@ -93,6 +172,7 @@ export default function RegisterPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="tu@correo.com"
+                required
                 className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ferro-yellow focus:border-transparent"
               />
             </div>
@@ -105,6 +185,8 @@ export default function RegisterPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Mínimo 6 caracteres"
+                  minLength={6}
+                  required
                   className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ferro-yellow focus:border-transparent"
                 />
                 <button
@@ -126,15 +208,20 @@ export default function RegisterPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Confirma tu contraseña"
+                minLength={6}
+                required
                 className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ferro-yellow focus:border-transparent"
               />
             </div>
 
             <button
               type="submit"
-              className="w-full bg-ferro-yellow text-ferro-black font-semibold py-3 rounded-lg hover:bg-ferro-yellow-dark transition-colors"
+              disabled={cargando}
+              className="w-full bg-ferro-yellow text-ferro-black font-semibold py-3 rounded-lg hover:bg-ferro-yellow-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Registrarse
+              {cargando
+                ? "Creando cuenta..."
+                : "Registrarse"}
             </button>
           </form>
 

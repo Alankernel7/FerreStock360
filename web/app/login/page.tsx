@@ -1,12 +1,90 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
+
+import { iniciarSesion } from "@/services/authService";
 
 export default function LoginPage() {
+  const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+
+  const [recordarme, setRecordarme] = useState(false);
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (
+    event: FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault();
+
+    setError(null);
+
+    if (!email.trim()) {
+      setError("Ingresa tu correo electrónico.");
+      return;
+    }
+
+    if (!password) {
+      setError("Ingresa tu contraseña.");
+      return;
+    }
+
+    try {
+      setCargando(true);
+
+      const data = await iniciarSesion(
+        email.trim(),
+        password
+      );
+
+      const almacenamiento = recordarme
+        ? localStorage
+        : sessionStorage;
+
+      // Limpia una sesión anterior del otro almacenamiento.
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("usuario");
+
+      sessionStorage.removeItem("auth_token");
+      sessionStorage.removeItem("usuario");
+
+      almacenamiento.setItem(
+        "auth_token",
+        data.token
+      );
+
+      almacenamiento.setItem(
+        "usuario",
+        JSON.stringify(data.usuario)
+      );
+
+      if (data.usuario.rol === "admin") {
+        router.push("/dashboard");
+        return;
+      }
+
+      if (data.usuario.rol === "empleado") {
+        router.push("/");
+        return;
+      }
+
+      setError("El usuario no tiene un rol válido.");
+    } catch (err) {
+      const mensaje =
+        err instanceof Error
+          ? err.message
+          : "Ocurrió un error al iniciar sesión.";
+
+      setError(mensaje);
+    } finally {
+      setCargando(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex">
@@ -49,10 +127,15 @@ export default function LoginPage() {
           <h2 className="text-2xl font-bold text-ferro-black mb-2">Bienvenido</h2>
           <p className="text-gray-500 mb-8">Inicia sesión en tu cuenta</p>
 
-          <form className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Correo electrónico</label>
-              <input
+                {error && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                    {error}
+                  </div>
+                )}
+                <input 
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -89,8 +172,13 @@ export default function LoginPage() {
 
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-2">
-                <input type="checkbox" className="w-4 h-4 rounded border-gray-300" />
-                <span className="text-sm text-gray-600">Recordarme</span>
+              <input
+                type="checkbox"
+                checked={recordarme}
+                onChange={(e) => setRecordarme(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300"
+              />                
+              <span className="text-sm text-gray-600">Recordarme</span>
               </label>
               <a href="#" className="text-sm text-ferro-yellow hover:underline">
                 ¿Olvidaste tu contraseña?
@@ -99,9 +187,12 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              className="w-full bg-ferro-yellow text-ferro-black font-semibold py-3 rounded-lg hover:bg-ferro-yellow-dark transition-colors"
+              disabled={cargando}
+              className="w-full bg-ferro-yellow text-ferro-black font-semibold py-3 rounded-lg hover:bg-ferro-yellow-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Iniciar sesión
+              {cargando
+                ? "Iniciando sesión..."
+                : "Iniciar sesión"}
             </button>
           </form>
 

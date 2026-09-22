@@ -16,9 +16,45 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Permitir solicitudes desde el frontend
-app.use(cors({
-  origin: "http://localhost:3000",
-}));
+const originsPermitidos = (
+  process.env.FRONTEND_URLS ||
+  "http://localhost:3000"
+)
+  .split(",")
+  .map((origin) => origin.trim());
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Permite solicitudes sin Origin como Postman
+      // o llamadas servidor a servidor.
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      if (originsPermitidos.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(
+        new Error("Origen no permitido por CORS")
+      );
+    },
+
+    methods: [
+      "GET",
+      "POST",
+      "PUT",
+      "DELETE",
+      "OPTIONS",
+    ],
+
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+    ],
+  })
+);
 
 // Middleware para parsear JSON
 app.use(express.json());

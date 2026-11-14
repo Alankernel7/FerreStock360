@@ -1,195 +1,453 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Image from "next/image";
+import { useEffect, useMemo, useState } from "react";
+
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import ProductCard from "@/components/ProductCard";
-import { obtenerProductos } from "@/services/productosService";
+
+import { obtenerProductosPublicos } from "@/services/productosService";
+import { obtenerCategorias } from "@/services/categoriasService";
+
 import type { Producto } from "@/types/producto";
+import type { Categoria } from "@/types/categoria";
 
-const categories = [
-  "Herramientas",
-  "Pintura",
-  "Plomería",
-  "Electricidad",
-  "Construcción",
-  "Jardín",
-];
+type Orden =
+  | "recientes"
+  | "precio-asc"
+  | "precio-desc"
+  | "nombre-asc"
+  | "nombre-desc";
 
+const NUEVOS_LIMITE = 4;
 
 export default function HomePage() {
   const [productos, setProductos] = useState<Producto[]>([]);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Controles del catálogo
+  const [busqueda, setBusqueda] = useState("");
+  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<
+    number | null
+  >(null);
+  const [orden, setOrden] = useState<Orden>("recientes");
+
+  // Carga única del catálogo público (solo activos) y las categorías reales.
   useEffect(() => {
-    const cargarProductos = async () => {
+    let activo = true;
+
+    (async () => {
       try {
-        setCargando(true);
+        const [datosProductos, datosCategorias] = await Promise.all([
+          obtenerProductosPublicos(),
+          obtenerCategorias(),
+        ]);
 
-        const datos = await obtenerProductos();
+        if (!activo) return;
 
-        setProductos(datos);
+        setProductos(datosProductos);
+        setCategorias(datosCategorias);
         setError(null);
       } catch (err) {
-        console.error("Error al cargar productos:", err);
-        setError("No se pudieron cargar los productos.");
+        console.error("Error al cargar el catálogo:", err);
+        if (activo) setError("No se pudieron cargar los productos.");
       } finally {
-        setCargando(false);
+        if (activo) setCargando(false);
       }
-    };
+    })();
 
-    cargarProductos();
+    return () => {
+      activo = false;
+    };
   }, []);
+
+  // id_categoria → nombre real (para mostrar la categoría en las tarjetas).
+  const nombreCategoria = useMemo(() => {
+    const mapa = new Map<number, string>();
+    categorias.forEach((categoria) =>
+      mapa.set(categoria.id_categoria, categoria.nombre)
+    );
+    return mapa;
+  }, [categorias]);
+
+  // Cantidad de productos activos por categoría.
+  const conteoPorCategoria = useMemo(() => {
+    const mapa = new Map<number, number>();
+    productos.forEach((producto) =>
+      mapa.set(
+        producto.id_categoria,
+        (mapa.get(producto.id_categoria) ?? 0) + 1
+      )
+    );
+    return mapa;
+  }, [productos]);
+
+  const productosFiltrados = useMemo(() => {
+    const texto = busqueda.trim().toLowerCase();
+
+    const filtrados = productos.filter((producto) => {
+      const coincideTexto =
+        !texto ||
+        producto.nombre.toLowerCase().includes(texto) ||
+        producto.codigo.toLowerCase().includes(texto);
+
+      const coincideCategoria =
+        categoriaSeleccionada === null ||
+        producto.id_categoria === categoriaSeleccionada;
+
+      return coincideTexto && coincideCategoria;
+    });
+
+    const ordenados = [...filtrados];
+
+    ordenados.sort((a, b) => {
+      switch (orden) {
+        case "precio-asc":
+          return Number(a.precio) - Number(b.precio);
+        case "precio-desc":
+          return Number(b.precio) - Number(a.precio);
+        case "nombre-asc":
+          return a.nombre.localeCompare(b.nombre);
+        case "nombre-desc":
+          return b.nombre.localeCompare(a.nombre);
+        case "recientes":
+        default:
+          return (
+            new Date(b.fecha_creacion).getTime() -
+            new Date(a.fecha_creacion).getTime()
+          );
+      }
+    });
+
+    return ordenados;
+  }, [productos, busqueda, categoriaSeleccionada, orden]);
+
+  // Productos agregados recientemente (por fecha real de creación).
+  const nuevosProductos = useMemo(() => {
+    return [...productos]
+      .sort(
+        (a, b) =>
+          new Date(b.fecha_creacion).getTime() -
+          new Date(a.fecha_creacion).getTime()
+      )
+      .slice(0, NUEVOS_LIMITE);
+  }, [productos]);
+
+  const seleccionarCategoria = (id: number | null) => {
+    setCategoriaSeleccionada(id);
+    document.getElementById("catalogo")?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const hayFiltros = busqueda.trim() !== "" || categoriaSeleccionada !== null;
 
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
 
-      <section className="bg-ferro-black text-white py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row items-center gap-8">
-            <div className="flex-1">
-              <h1 className="text-4xl md:text-5xl font-bold mb-4">
-                STORE
-              </h1>
-              <p className="text-gray-400 text-lg">
-                Tu ferretería, siempre contigo. Encuentra las mejores herramientas y materiales.
-              </p>
-              <div className="flex items-center gap-2 mt-4 text-sm text-gray-400">
-                <span>You are here:</span>
-                <span className="text-ferro-yellow">Home</span>
-                <span>/</span>
-                <span>Products</span>
-              </div>
-            </div>
-            <div className="flex-1 flex justify-center">
-              <div className="w-64 h-64 bg-ferro-yellow/20 rounded-full flex items-center justify-center">
-                <svg className="w-32 h-32 text-ferro-yellow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* Banner oficial FerreStock360 (identidad, herramientas y mensaje comercial) */}
+      <section className="w-full bg-ferro-yellow">
+        <Image
+          src="/imagenes/banner_ferrestock360.png"
+          alt="Banner FerreStock360 - Tu ferretería, siempre contigo"
+          width={1983}
+          height={793}
+          sizes="100vw"
+          className="w-full h-auto block"
+          priority
+        />
       </section>
 
       <main className="flex-1 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="flex flex-col lg:flex-row gap-8">
-            <aside className="w-full lg:w-64 flex-shrink-0">
-              <div className="mb-8">
-                <input
-                  type="text"
-                  placeholder="Search Products..."
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ferro-yellow"
-                />
-              </div>
-
-              <div className="mb-8">
-                <h3 className="font-bold text-lg mb-4">CATEGORIES</h3>
-                <ul className="space-y-2">
-                  {categories.map((cat) => (
-                    <li key={cat}>
-                      <a href="#" className="text-gray-600 hover:text-ferro-yellow transition-colors">
-                        {cat}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
+        {/* D. Categorías */}
+        <section
+          id="categorias"
+          className="scroll-mt-20 bg-ferro-light border-b border-gray-100"
+        >
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <div className="flex items-end justify-between mb-6">
               <div>
-                <h3 className="font-bold text-lg mb-4">FEATURED PRODUCTS</h3>
-                <div className="space-y-4">
-                  {productos.slice(0, 3).map((producto) => (
-                    <div
-                      key={producto.id_producto}
-                      className="flex items-center gap-3"
+                <h2 className="text-2xl font-bold text-ferro-black">
+                  Categorías
+                </h2>
+                <p className="text-gray-500 mt-1">
+                  Filtra el catálogo por categoría
+                </p>
+              </div>
+
+              {categoriaSeleccionada !== null && (
+                <button
+                  type="button"
+                  onClick={() => setCategoriaSeleccionada(null)}
+                  className="text-sm text-ferro-gray hover:text-ferro-black underline"
+                >
+                  Limpiar filtro
+                </button>
+              )}
+            </div>
+
+            {cargando ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                {[...Array(4)].map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-24 bg-white rounded-xl border border-gray-100 animate-pulse"
+                  />
+                ))}
+              </div>
+            ) : categorias.length === 0 ? (
+              <p className="text-gray-500">No hay categorías registradas.</p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                <button
+                  type="button"
+                  onClick={() => seleccionarCategoria(null)}
+                  className={`text-left bg-white rounded-xl border p-4 hover:border-ferro-yellow hover:shadow-sm transition-all ${
+                    categoriaSeleccionada === null
+                      ? "border-ferro-yellow ring-1 ring-ferro-yellow"
+                      : "border-gray-100"
+                  }`}
+                >
+                  <p className="font-semibold text-ferro-black">
+                    Todas las categorías
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {productos.length} producto(s)
+                  </p>
+                </button>
+
+                {categorias.map((categoria) => {
+                  const activa =
+                    categoriaSeleccionada === categoria.id_categoria;
+
+                  return (
+                    <button
+                      key={categoria.id_categoria}
+                      type="button"
+                      onClick={() =>
+                        seleccionarCategoria(categoria.id_categoria)
+                      }
+                      className={`text-left bg-white rounded-xl border p-4 hover:border-ferro-yellow hover:shadow-sm transition-all ${
+                        activa
+                          ? "border-ferro-yellow ring-1 ring-ferro-yellow"
+                          : "border-gray-100"
+                      }`}
                     >
-                      <div className="w-12 h-12 bg-ferro-light rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
-                        {producto.imagen_url ? (
-                          <img
-                            src={producto.imagen_url}
-                            alt={producto.nombre}
-                            className="w-full h-full object-contain"
-                          />
-                        ) : (
-                          <svg
-                            className="w-6 h-6 text-ferro-gray"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-                            />
-                          </svg>
-                        )}
-                      </div>
+                      <p className="font-semibold text-ferro-black truncate">
+                        {categoria.nombre}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {conteoPorCategoria.get(categoria.id_categoria) ?? 0}{" "}
+                        producto(s)
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </section>
 
-                      <div>
-                        <p className="text-sm font-medium">
-                          {producto.nombre}
-                        </p>
+        {/* C. Catálogo */}
+        <section id="catalogo" className="scroll-mt-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-ferro-black">
+                Catálogo de productos
+              </h2>
+              <p className="text-gray-500 mt-1">
+                Busca, filtra y ordena los productos disponibles
+              </p>
+            </div>
 
-                        <p className="text-sm text-ferro-yellow font-bold">
-                          ${Number(producto.precio).toFixed(2)}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+            {/* Controles */}
+            <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-4 mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label
+                    htmlFor="busqueda"
+                    className="block text-xs font-medium text-gray-500 mb-1"
+                  >
+                    Buscar
+                  </label>
+
+                  <input
+                    id="busqueda"
+                    type="text"
+                    value={busqueda}
+                    onChange={(e) => setBusqueda(e.target.value)}
+                    placeholder="Nombre o código..."
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ferro-yellow"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="filtro-categoria"
+                    className="block text-xs font-medium text-gray-500 mb-1"
+                  >
+                    Categoría
+                  </label>
+
+                  <select
+                    id="filtro-categoria"
+                    value={categoriaSeleccionada ?? ""}
+                    onChange={(e) =>
+                      setCategoriaSeleccionada(
+                        e.target.value ? Number(e.target.value) : null
+                      )
+                    }
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ferro-yellow"
+                  >
+                    <option value="">Todas las categorías</option>
+                    {categorias.map((categoria) => (
+                      <option
+                        key={categoria.id_categoria}
+                        value={categoria.id_categoria}
+                      >
+                        {categoria.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="orden"
+                    className="block text-xs font-medium text-gray-500 mb-1"
+                  >
+                    Ordenar por
+                  </label>
+
+                  <select
+                    id="orden"
+                    value={orden}
+                    onChange={(e) => setOrden(e.target.value as Orden)}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ferro-yellow"
+                  >
+                    <option value="recientes">Más recientes</option>
+                    <option value="precio-asc">Precio: menor a mayor</option>
+                    <option value="precio-desc">Precio: mayor a menor</option>
+                    <option value="nombre-asc">Nombre: A - Z</option>
+                    <option value="nombre-desc">Nombre: Z - A</option>
+                  </select>
                 </div>
               </div>
-            </aside>
 
-            <div className="flex-1">
-              <div className="flex items-center justify-between mb-6">
-                <p className="text-gray-500">{productos.length} productos encontrados</p>                
-                <select className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ferro-yellow">
-                  <option>Default sorting</option>
-                  <option>Price: Low to High</option>
-                  <option>Price: High to Low</option>
-                </select>
-              </div>
+              <div className="flex items-center justify-between mt-4">
+                <p className="text-sm text-gray-500">
+                  {cargando
+                    ? "Cargando productos..."
+                    : `${productosFiltrados.length} de ${productos.length} producto(s)`}
+                </p>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {cargando ? (
-                  <p className="text-gray-500">
-                    Cargando productos...
-                  </p>
-                ) : error ? (
-                  <p className="text-red-500">
-                    {error}
-                  </p>
-                ) : productos.length === 0 ? (
-                  <p className="text-gray-500">
-                    No hay productos disponibles.
-                  </p>
-                ) : (
-                  productos.map((producto) => (
-                    <ProductCard
-                      key={producto.id_producto}
-                      name={producto.nombre}
-                      price={Number(producto.precio)}
-                      image={producto.imagen_url ?? undefined}
-                    />
-                  ))
+                {hayFiltros && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBusqueda("");
+                      setCategoriaSeleccionada(null);
+                      setOrden("recientes");
+                    }}
+                    className="text-xs text-gray-500 hover:text-ferro-black underline"
+                  >
+                    Limpiar filtros
+                  </button>
                 )}
               </div>
-
-              <div className="flex items-center gap-2 mt-8 justify-center">
-                <button className="w-10 h-10 bg-ferro-yellow text-ferro-black font-bold rounded-lg">1</button>
-                <button className="w-10 h-10 border border-gray-200 rounded-lg hover:border-ferro-yellow transition-colors">2</button>
-                <button className="w-10 h-10 border border-gray-200 rounded-lg hover:border-ferro-yellow transition-colors">→</button>
-              </div>
             </div>
+
+            {error ? (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                {error}
+              </div>
+            ) : cargando ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {[...Array(4)].map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-80 bg-ferro-light rounded-xl animate-pulse"
+                  />
+                ))}
+              </div>
+            ) : productos.length === 0 ? (
+              <div className="bg-ferro-light rounded-xl p-10 text-center">
+                <p className="text-gray-500">
+                  No hay productos disponibles por el momento.
+                </p>
+              </div>
+            ) : productosFiltrados.length === 0 ? (
+              <div className="bg-ferro-light rounded-xl p-10 text-center">
+                <p className="text-gray-500">
+                  No hay productos que coincidan con los filtros.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {productosFiltrados.map((producto) => (
+                  <ProductCard
+                    key={producto.id_producto}
+                    name={producto.nombre}
+                    price={Number(producto.precio)}
+                    image={producto.imagen_1 || producto.imagen_2 || undefined}
+                    description={producto.descripcion ?? undefined}
+                    category={nombreCategoria.get(producto.id_categoria)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-        </div>
+        </section>
+
+        {/* E. Nuevos productos */}
+        <section
+          id="nuevos"
+          className="scroll-mt-20 bg-ferro-light border-t border-gray-100"
+        >
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-ferro-black">
+                Nuevos productos
+              </h2>
+              <p className="text-gray-500 mt-1">
+                Lo último que se agregó al inventario
+              </p>
+            </div>
+
+            {!cargando && nuevosProductos.length === 0 ? (
+              <div className="bg-white rounded-xl border border-gray-100 p-10 text-center">
+                <p className="text-gray-500">
+                  Aún no hay productos nuevos para mostrar.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {cargando
+                  ? [...Array(NUEVOS_LIMITE)].map((_, i) => (
+                      <div
+                        key={i}
+                        className="h-80 bg-white rounded-xl animate-pulse"
+                      />
+                    ))
+                  : nuevosProductos.map((producto) => (
+                      <ProductCard
+                        key={producto.id_producto}
+                        name={producto.nombre}
+                        price={Number(producto.precio)}
+                        image={
+                          producto.imagen_1 || producto.imagen_2 || undefined
+                        }
+                        description={producto.descripcion ?? undefined}
+                        category={nombreCategoria.get(producto.id_categoria)}
+                        badge="Nuevo"
+                      />
+                    ))}
+              </div>
+            )}
+          </div>
+        </section>
       </main>
 
       <Footer />

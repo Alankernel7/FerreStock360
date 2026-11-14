@@ -1,7 +1,47 @@
 // Controlador de categorías.
 // Recibe las solicitudes, valida datos, llama al servicio y devuelve la respuesta.
 
-const { obtenerCategorias, obtenerCategoriaPorId, crearCategoria, actualizarCategoria, eliminarCategoria } = require("../services/categoriasService");
+const {
+  obtenerCategorias,
+  obtenerCategoriaPorId,
+  existeCategoriaPorNombre,
+  contarProductosPorCategoria,
+  crearCategoria,
+  actualizarCategoria,
+  eliminarCategoria,
+} = require("../services/categoriasService");
+
+// Longitudes máximas según el esquema de SQL Server.
+const MAX_NOMBRE = 100;
+const MAX_DESCRIPCION = 200;
+
+// Valida y normaliza los datos recibidos desde el cliente.
+// Devuelve la lista de errores y los datos limpios.
+const validarCategoria = (body) => {
+  const errores = [];
+
+  const nombre = typeof body.nombre === "string" ? body.nombre.trim() : "";
+  const descripcion =
+    typeof body.descripcion === "string" ? body.descripcion.trim() : "";
+
+  if (!nombre) {
+    errores.push("El nombre de la categoría es obligatorio");
+  } else if (nombre.length > MAX_NOMBRE) {
+    errores.push(`El nombre no puede superar los ${MAX_NOMBRE} caracteres`);
+  }
+
+  if (descripcion.length > MAX_DESCRIPCION) {
+    errores.push(`La descripción no puede superar los ${MAX_DESCRIPCION} caracteres`);
+  }
+
+  return {
+    errores,
+    datos: {
+      nombre,
+      descripcion: descripcion || null,
+    },
+  };
+};
 
 // GET /api/categorias
 const getCategorias = async (req, res) => {
@@ -37,18 +77,19 @@ const getCategoriaById = async (req, res) => {
 // POST /api/categorias
 const createCategoria = async (req, res) => {
   try {
-    const { nombre, descripcion } = req.body;
+    const { errores, datos } = validarCategoria(req.body || {});
 
-    // Validaciones de campos obligatorios
-    if (!nombre || !nombre.trim()) {
-      return res.status(400).json({ ok: false, message: "El nombre es obligatorio" });
+    if (errores.length > 0) {
+      return res.status(400).json({ ok: false, message: errores[0], errores });
     }
 
-    // El service ejecuta el INSERT utilizando parámetros SQL
-    const nuevaCategoria = await crearCategoria({
-      nombre: nombre.trim(),
-      descripcion,
-    });
+    // Evita categorías duplicadas antes de llegar a SQL Server.
+    const duplicada = await existeCategoriaPorNombre(datos.nombre);
+    if (duplicada) {
+      return res.status(409).json({ ok: false, message: "Ya existe una categoría con ese nombre" });
+    }
+
+    const nuevaCategoria = await crearCategoria(datos);
 
     res.status(201).json({
       ok: true,
@@ -58,8 +99,8 @@ const createCategoria = async (req, res) => {
   } catch (err) {
     console.error("Error al crear categoría:", err.message);
 
-    // Manejo de nombre duplicado
-    if (err.message.includes("UNIQUE") || err.message.includes("duplicate")) {
+    // Respaldo: restricción UNIQUE de SQL Server.
+    if (err.message.includes("UNIQUE") || err.message.includes("duplicate") || err.number === 2627 || err.number === 2601) {
       return res.status(409).json({ ok: false, message: "Ya existe una categoría con ese nombre" });
     }
 
@@ -72,29 +113,28 @@ const updateCategoria = async (req, res) => {
   try {
     const id = parseInt(req.params.id);
 
-    // Validación del ID
     if (isNaN(id) || id <= 0) {
       return res.status(400).json({ ok: false, message: "ID de categoría inválido" });
     }
 
-    // Verifica que la categoría exista
     const existente = await obtenerCategoriaPorId(id);
     if (!existente) {
       return res.status(404).json({ ok: false, message: "Categoría no encontrada" });
     }
 
-    const { nombre, descripcion } = req.body;
+    const { errores, datos } = validarCategoria(req.body || {});
 
-    // Validaciones de campos obligatorios
-    if (!nombre || !nombre.trim()) {
-      return res.status(400).json({ ok: false, message: "El nombre es obligatorio" });
+    if (errores.length > 0) {
+      return res.status(400).json({ ok: false, message: errores[0], errores });
     }
 
-    // El service ejecuta el UPDATE utilizando parámetros SQL
-    const categoriaActualizada = await actualizarCategoria(id, {
-      nombre: nombre.trim(),
-      descripcion,
-    });
+    // Permite conservar el mismo nombre de la categoría actual.
+    const duplicada = await existeCategoriaPorNombre(datos.nombre, id);
+    if (duplicada) {
+      return res.status(409).json({ ok: false, message: "Ya existe otra categoría con ese nombre" });
+    }
+
+    const categoriaActualizada = await actualizarCategoria(id, datos);
 
     res.json({
       ok: true,
@@ -104,7 +144,7 @@ const updateCategoria = async (req, res) => {
   } catch (err) {
     console.error("Error al actualizar categoría:", err.message);
 
-    if (err.message.includes("UNIQUE") || err.message.includes("duplicate")) {
+    if (err.message.includes("UNIQUE") || err.message.includes("duplicate") || err.number === 2627 || err.number === 2601) {
       return res.status(409).json({ ok: false, message: "Ya existe otra categoría con ese nombre" });
     }
 
@@ -117,26 +157,32 @@ const deleteCategoria = async (req, res) => {
   try {
     const id = parseInt(req.params.id);
 
-    // Validación del ID
     if (isNaN(id) || id <= 0) {
       return res.status(400).json({ ok: false, message: "ID de categoría inválido" });
     }
 
-    // Verifica que la categoría exista
     const existente = await obtenerCategoriaPorId(id);
     if (!existente) {
       return res.status(404).json({ ok: false, message: "Categoría no encontrada" });
     }
 
-    // El service ejecuta el DELETE utilizando un parámetro SQL
+    // No se elimina una categoría con productos asociados.
+    const totalProductos = await contarProductosPorCategoria(id);
+    if (totalProductos > 0) {
+      return res.status(409).json({
+        ok: false,
+        message: `No se puede eliminar la categoría "${existente.nombre}" porque tiene ${totalProductos} producto(s) asociado(s). Reasigna o elimina primero esos productos.`,
+      });
+    }
+
     await eliminarCategoria(id);
 
     res.json({ ok: true, message: "Categoría eliminada correctamente" });
   } catch (err) {
     console.error("Error al eliminar categoría:", err.message);
 
-    // Manejo de Foreign Key (categoría con productos relacionados)
-    if (err.message.includes("FOREIGN KEY") || err.message.includes("FK_")) {
+    // Respaldo: restricción de clave foránea de SQL Server.
+    if (err.message.includes("FOREIGN KEY") || err.message.includes("FK_") || err.number === 547) {
       return res.status(409).json({
         ok: false,
         message: "No se puede eliminar la categoría porque tiene productos relacionados",

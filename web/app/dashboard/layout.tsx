@@ -21,22 +21,35 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const [verificando, setVerificando] = useState(true);
 
+  // Estado del drawer lateral en móvil.
+  const [sidebarAbierto, setSidebarAbierto] = useState(false);
+
   useEffect(() => {
-    const token = obtenerToken();
-    const usuarioGuardado = obtenerUsuarioGuardado();
+    let activo = true;
 
-    if (!token || !usuarioGuardado) {
-      router.replace("/login");
-      return;
-    }
+    (async () => {
+      const token = obtenerToken();
+      const usuarioGuardado = obtenerUsuarioGuardado();
 
-    if (usuarioGuardado.rol !== "admin") {
-      router.replace("/");
-      return;
-    }
+      if (!token || !usuarioGuardado) {
+        router.replace("/login");
+        return;
+      }
 
-    setUsuario(usuarioGuardado);
-    setVerificando(false);
+      if (usuarioGuardado.rol !== "admin") {
+        router.replace("/");
+        return;
+      }
+
+      if (!activo) return;
+
+      setUsuario(usuarioGuardado);
+      setVerificando(false);
+    })();
+
+    return () => {
+      activo = false;
+    };
   }, [router]);
 
   if (verificando || !usuario) {
@@ -51,37 +64,58 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen bg-ferro-light">
-      <Sidebar usuario={usuario} />
-      <div className="flex-1 flex flex-col">
-        <header className="bg-white border-b border-gray-100 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+      <Sidebar
+        usuario={usuario}
+        abierto={sidebarAbierto}
+        onClose={() => setSidebarAbierto(false)}
+      />
+
+      <div className="flex-1 flex flex-col min-w-0">
+        <header className="bg-white border-b border-gray-100 px-4 sm:px-6 py-3 sticky top-0 z-30">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              {/* Botón hamburguesa (solo móvil) */}
+              <button
+                type="button"
+                onClick={() => setSidebarAbierto(true)}
+                className="lg:hidden p-2 text-gray-600 hover:text-ferro-black transition-colors flex-shrink-0"
+                aria-label="Abrir menú"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+
+              {/* Búsqueda: oculta en móvil, visible desde sm */}
               <input
                 type="text"
                 placeholder="Buscar productos..."
-                className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ferro-yellow w-64"
+                className="hidden sm:block px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ferro-yellow w-full max-w-xs"
               />
             </div>
-            <div className="flex items-center gap-4">
+
+            <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
               <button className="relative p-2 text-gray-500 hover:text-ferro-yellow">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                 </svg>
                 <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
               </button>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-ferro-yellow rounded-full flex items-center justify-center">
+
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 bg-ferro-yellow rounded-full flex items-center justify-center flex-shrink-0">
                   <span className="text-ferro-black font-bold text-sm">{usuario.nombre.charAt(0).toUpperCase()}</span>
                 </div>
-                <div className="hidden md:block">
-                  <p className="text-sm font-medium">{usuario.nombre}</p>
-                  <p className="text-xs text-gray-500">{usuario.email}</p>
+                <div className="hidden md:block min-w-0">
+                  <p className="text-sm font-medium truncate">{usuario.nombre}</p>
+                  <p className="text-xs text-gray-500 truncate">{usuario.email}</p>
                 </div>
               </div>
             </div>
           </div>
         </header>
-        <main className="flex-1 p-6">{children}</main>
+
+        <main className="flex-1 p-4 sm:p-6 overflow-x-hidden">{children}</main>
       </div>
     </div>
   );

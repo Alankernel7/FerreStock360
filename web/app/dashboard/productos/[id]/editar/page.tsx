@@ -13,6 +13,74 @@ import { obtenerCategorias } from "@/services/categoriasService";
 
 import type { Categoria } from "@/types/categoria";
 
+const MAX_NOMBRE = 150;
+const MAX_CODIGO = 50;
+const MAX_DESCRIPCION = 500;
+const MAX_PRECIO = 99999999.99;
+
+interface Errores {
+  nombre?: string;
+  codigo?: string;
+  descripcion?: string;
+  precio?: string;
+  imagen_1?: string;
+  imagen_2?: string;
+  stock_actual?: string;
+  stock_minimo?: string;
+  id_categoria?: string;
+}
+
+// --- Validaciones por campo (reutilizables al escribir, salir y enviar) ---
+
+function validarNombre(valor: string): string | undefined {
+  const limpio = valor.trim();
+  if (!limpio) return "El nombre es obligatorio.";
+  if (limpio.length > MAX_NOMBRE)
+    return `El nombre no puede superar los ${MAX_NOMBRE} caracteres.`;
+  return undefined;
+}
+
+function validarCodigo(valor: string): string | undefined {
+  const limpio = valor.trim();
+  if (!limpio) return "El código es obligatorio.";
+  if (limpio.length > MAX_CODIGO)
+    return `El código no puede superar los ${MAX_CODIGO} caracteres.`;
+  return undefined;
+}
+
+function validarDescripcion(valor: string): string | undefined {
+  if (valor.trim().length > MAX_DESCRIPCION)
+    return `La descripción no puede superar los ${MAX_DESCRIPCION} caracteres.`;
+  return undefined;
+}
+
+function validarPrecio(valor: string): string | undefined {
+  if (valor.trim() === "") return "El precio es obligatorio.";
+  const numero = Number(valor);
+  if (!Number.isFinite(numero)) return "El precio debe ser un número válido.";
+  if (numero < 0) return "El precio no puede ser negativo.";
+  if (numero > MAX_PRECIO) return `El precio no puede superar ${MAX_PRECIO}.`;
+  return undefined;
+}
+
+function validarEntero(valor: string, etiqueta: string): string | undefined {
+  if (valor.trim() === "") return undefined;
+  const numero = Number(valor);
+  if (!Number.isInteger(numero))
+    return `${etiqueta} debe ser un número entero.`;
+  if (numero < 0) return `${etiqueta} no puede ser negativo.`;
+  return undefined;
+}
+
+function validarImagen(valor: string, etiqueta: string): string | undefined {
+  const limpio = valor.trim();
+  if (!limpio) return undefined;
+  if (limpio.length > 500) return `La ruta de ${etiqueta} es demasiado larga.`;
+  if (!/^(\/|https?:\/\/)/i.test(limpio))
+    return `La ruta de ${etiqueta} debe comenzar con / o http(s)://`;
+  return undefined;
+}
+
 export default function EditarProductoPage() {
   const params = useParams();
   const router = useRouter();
@@ -24,12 +92,14 @@ export default function EditarProductoPage() {
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errores, setErrores] = useState<Errores>({});
 
   const [nombre, setNombre] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [codigo, setCodigo] = useState("");
   const [precio, setPrecio] = useState("");
-  const [imagenUrl, setImagenUrl] = useState("");
+  const [imagen1, setImagen1] = useState("");
+  const [imagen2, setImagen2] = useState("");
   const [stockActual, setStockActual] = useState("0");
   const [stockMinimo, setStockMinimo] = useState("5");
   const [idCategoria, setIdCategoria] = useState("");
@@ -55,7 +125,8 @@ export default function EditarProductoPage() {
         setDescripcion(producto.descripcion ?? "");
         setCodigo(producto.codigo);
         setPrecio(String(producto.precio));
-        setImagenUrl(producto.imagen_url ?? "");
+        setImagen1(producto.imagen_1 ?? "");
+        setImagen2(producto.imagen_2 ?? "");
         setStockActual(String(producto.stock_actual));
         setStockMinimo(String(producto.stock_minimo));
         setIdCategoria(String(producto.id_categoria));
@@ -75,37 +146,34 @@ export default function EditarProductoPage() {
     cargarDatos();
   }, [id]);
 
-  const handleSubmit = async (
-    event: FormEvent<HTMLFormElement>
-  ) => {
+  const limpiarError = (campo: keyof Errores) => {
+    setErrores((prev) => {
+      if (!prev[campo]) return prev;
+      return { ...prev, [campo]: undefined };
+    });
+  };
+
+  const validarTodo = (): Errores => ({
+    nombre: validarNombre(nombre),
+    codigo: validarCodigo(codigo),
+    descripcion: validarDescripcion(descripcion),
+    precio: validarPrecio(precio),
+    imagen_1: validarImagen(imagen1, "la imagen 1"),
+    imagen_2: validarImagen(imagen2, "la imagen 2"),
+    stock_actual: validarEntero(stockActual, "El stock actual"),
+    stock_minimo: validarEntero(stockMinimo, "El stock mínimo"),
+    id_categoria: idCategoria ? undefined : "Debes seleccionar una categoría.",
+  });
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     setError(null);
 
-    if (!nombre.trim()) {
-      setError("El nombre es obligatorio.");
-      return;
-    }
+    const validaciones = validarTodo();
+    setErrores(validaciones);
 
-    if (!codigo.trim()) {
-      setError("El código es obligatorio.");
-      return;
-    }
-
-    if (!precio || Number(precio) < 0) {
-      setError("El precio debe ser mayor o igual a 0.");
-      return;
-    }
-
-    if (!idCategoria) {
-      setError("Debes seleccionar una categoría.");
-      return;
-    }
-
-    if (Number(stockActual) < 0 || Number(stockMinimo) < 0) {
-      setError("Los valores de stock no pueden ser negativos.");
-      return;
-    }
+    if (Object.values(validaciones).some(Boolean)) return;
 
     try {
       setGuardando(true);
@@ -115,9 +183,10 @@ export default function EditarProductoPage() {
         descripcion: descripcion.trim(),
         codigo: codigo.trim(),
         precio: Number(precio),
-        imagen_url: imagenUrl.trim() || null,
-        stock_actual: Number(stockActual),
-        stock_minimo: Number(stockMinimo),
+        imagen_1: imagen1.trim() || null,
+        imagen_2: imagen2.trim() || null,
+        stock_actual: stockActual.trim() === "" ? 0 : Number(stockActual),
+        stock_minimo: stockMinimo.trim() === "" ? 5 : Number(stockMinimo),
         id_categoria: Number(idCategoria),
         estado,
       });
@@ -129,11 +198,21 @@ export default function EditarProductoPage() {
           ? err.message
           : "Ocurrió un error al actualizar el producto.";
 
-      setError(mensaje);
+      // Si el backend detecta código duplicado, se muestra bajo ese campo.
+      if (mensaje.toLowerCase().includes("código")) {
+        setErrores((p) => ({ ...p, codigo: mensaje }));
+      } else {
+        setError(mensaje);
+      }
     } finally {
       setGuardando(false);
     }
   };
+
+  const inputClass = (campo: keyof Errores) =>
+    `w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-ferro-yellow ${
+      errores[campo] ? "border-red-400" : "border-gray-200"
+    }`;
 
   if (cargando) {
     return (
@@ -142,9 +221,7 @@ export default function EditarProductoPage() {
           Editar producto
         </h1>
 
-        <p className="text-gray-500">
-          Cargando producto...
-        </p>
+        <p className="text-gray-500">Cargando producto...</p>
       </div>
     );
   }
@@ -170,7 +247,8 @@ export default function EditarProductoPage() {
 
       <form
         onSubmit={handleSubmit}
-        className="bg-white rounded-xl border border-gray-100 shadow-sm p-6"
+        noValidate
+        className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 sm:p-6"
       >
         {error && (
           <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
@@ -180,44 +258,68 @@ export default function EditarProductoPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label className="block text-sm font-medium mb-2">
-              Nombre *
-            </label>
+            <label className="block text-sm font-medium mb-2">Nombre *</label>
 
             <input
               type="text"
               value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ferro-yellow"
+              onChange={(e) => {
+                setNombre(e.target.value);
+                limpiarError("nombre");
+              }}
+              onBlur={() =>
+                setErrores((p) => ({ ...p, nombre: validarNombre(nombre) }))
+              }
+              className={inputClass("nombre")}
             />
+
+            {errores.nombre && (
+              <p className="text-xs text-red-600 mt-1">{errores.nombre}</p>
+            )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">
-              Código *
-            </label>
+            <label className="block text-sm font-medium mb-2">Código *</label>
 
             <input
               type="text"
               value={codigo}
-              onChange={(e) => setCodigo(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ferro-yellow"
+              onChange={(e) => {
+                setCodigo(e.target.value);
+                limpiarError("codigo");
+              }}
+              onBlur={() =>
+                setErrores((p) => ({ ...p, codigo: validarCodigo(codigo) }))
+              }
+              className={inputClass("codigo")}
             />
+
+            {errores.codigo && (
+              <p className="text-xs text-red-600 mt-1">{errores.codigo}</p>
+            )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">
-              Precio *
-            </label>
+            <label className="block text-sm font-medium mb-2">Precio *</label>
 
             <input
               type="number"
               min="0"
               step="0.01"
               value={precio}
-              onChange={(e) => setPrecio(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ferro-yellow"
+              onChange={(e) => {
+                setPrecio(e.target.value);
+                limpiarError("precio");
+              }}
+              onBlur={() =>
+                setErrores((p) => ({ ...p, precio: validarPrecio(precio) }))
+              }
+              className={inputClass("precio")}
             />
+
+            {errores.precio && (
+              <p className="text-xs text-red-600 mt-1">{errores.precio}</p>
+            )}
           </div>
 
           <div>
@@ -227,12 +329,21 @@ export default function EditarProductoPage() {
 
             <select
               value={idCategoria}
-              onChange={(e) => setIdCategoria(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ferro-yellow"
+              onChange={(e) => {
+                setIdCategoria(e.target.value);
+                limpiarError("id_categoria");
+              }}
+              onBlur={() =>
+                setErrores((p) => ({
+                  ...p,
+                  id_categoria: idCategoria
+                    ? undefined
+                    : "Debes seleccionar una categoría.",
+                }))
+              }
+              className={inputClass("id_categoria")}
             >
-              <option value="">
-                Selecciona una categoría
-              </option>
+              <option value="">Selecciona una categoría</option>
 
               {categorias.map((categoria) => (
                 <option
@@ -243,6 +354,12 @@ export default function EditarProductoPage() {
                 </option>
               ))}
             </select>
+
+            {errores.id_categoria && (
+              <p className="text-xs text-red-600 mt-1">
+                {errores.id_categoria}
+              </p>
+            )}
           </div>
 
           <div>
@@ -254,9 +371,24 @@ export default function EditarProductoPage() {
               type="number"
               min="0"
               value={stockActual}
-              onChange={(e) => setStockActual(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ferro-yellow"
+              onChange={(e) => {
+                setStockActual(e.target.value);
+                limpiarError("stock_actual");
+              }}
+              onBlur={() =>
+                setErrores((p) => ({
+                  ...p,
+                  stock_actual: validarEntero(stockActual, "El stock actual"),
+                }))
+              }
+              className={inputClass("stock_actual")}
             />
+
+            {errores.stock_actual && (
+              <p className="text-xs text-red-600 mt-1">
+                {errores.stock_actual}
+              </p>
+            )}
           </div>
 
           <div>
@@ -268,23 +400,78 @@ export default function EditarProductoPage() {
               type="number"
               min="0"
               value={stockMinimo}
-              onChange={(e) => setStockMinimo(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ferro-yellow"
+              onChange={(e) => {
+                setStockMinimo(e.target.value);
+                limpiarError("stock_minimo");
+              }}
+              onBlur={() =>
+                setErrores((p) => ({
+                  ...p,
+                  stock_minimo: validarEntero(stockMinimo, "El stock mínimo"),
+                }))
+              }
+              className={inputClass("stock_minimo")}
             />
+
+            {errores.stock_minimo && (
+              <p className="text-xs text-red-600 mt-1">
+                {errores.stock_minimo}
+              </p>
+            )}
           </div>
 
           <div className="md:col-span-2">
             <label className="block text-sm font-medium mb-2">
-              Ruta de imagen
+              Ruta de imagen 1
             </label>
 
             <input
               type="text"
-              value={imagenUrl}
-              onChange={(e) => setImagenUrl(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ferro-yellow"
+              value={imagen1}
+              onChange={(e) => {
+                setImagen1(e.target.value);
+                limpiarError("imagen_1");
+              }}
+              onBlur={() =>
+                setErrores((p) => ({
+                  ...p,
+                  imagen_1: validarImagen(imagen1, "la imagen 1"),
+                }))
+              }
+              className={inputClass("imagen_1")}
               placeholder="/products/mi-producto.jpg"
             />
+
+            {errores.imagen_1 && (
+              <p className="text-xs text-red-600 mt-1">{errores.imagen_1}</p>
+            )}
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium mb-2">
+              Ruta de imagen 2 (opcional)
+            </label>
+
+            <input
+              type="text"
+              value={imagen2}
+              onChange={(e) => {
+                setImagen2(e.target.value);
+                limpiarError("imagen_2");
+              }}
+              onBlur={() =>
+                setErrores((p) => ({
+                  ...p,
+                  imagen_2: validarImagen(imagen2, "la imagen 2"),
+                }))
+              }
+              className={inputClass("imagen_2")}
+              placeholder="/products/mi-producto-2.jpg"
+            />
+
+            {errores.imagen_2 && (
+              <p className="text-xs text-red-600 mt-1">{errores.imagen_2}</p>
+            )}
           </div>
 
           <div className="md:col-span-2">
@@ -294,10 +481,25 @@ export default function EditarProductoPage() {
 
             <textarea
               value={descripcion}
-              onChange={(e) => setDescripcion(e.target.value)}
+              onChange={(e) => {
+                setDescripcion(e.target.value);
+                limpiarError("descripcion");
+              }}
+              onBlur={() =>
+                setErrores((p) => ({
+                  ...p,
+                  descripcion: validarDescripcion(descripcion),
+                }))
+              }
               rows={4}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ferro-yellow resize-none"
+              className={`${inputClass("descripcion")} resize-none`}
             />
+
+            {errores.descripcion && (
+              <p className="text-xs text-red-600 mt-1">
+                {errores.descripcion}
+              </p>
+            )}
           </div>
 
           <div className="md:col-span-2">
@@ -309,14 +511,12 @@ export default function EditarProductoPage() {
                 className="w-4 h-4"
               />
 
-              <span className="text-sm font-medium">
-                Producto activo
-              </span>
+              <span className="text-sm font-medium">Producto activo</span>
             </label>
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-100">
+        <div className="flex flex-wrap justify-end gap-3 mt-8 pt-6 border-t border-gray-100">
           <Link
             href="/dashboard/productos"
             className="px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50"

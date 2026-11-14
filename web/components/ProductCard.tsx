@@ -5,22 +5,34 @@ interface ProductCardProps {
   image?: string;
   rating?: number;
   badge?: string;
+  description?: string;
+  category?: string;
 }
 
-export default function ProductCard({ name, price, originalPrice, image, rating = 0, badge }: ProductCardProps) {
+export default function ProductCard({
+  name,
+  price,
+  originalPrice,
+  image,
+  rating = 0,
+  badge,
+  description,
+  category,
+}: ProductCardProps) {
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
-      <div className="relative bg-ferro-light p-6 flex items-center justify-center h-48">
+    <div className="h-full flex flex-col bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all">
+      <div className="relative bg-ferro-light flex items-center justify-center h-48 p-4">
         {badge && (
           <span className="absolute top-3 left-3 bg-ferro-yellow text-ferro-black text-xs font-bold px-2 py-1 rounded">
             {badge}
           </span>
         )}
+
         {image ? (
           <img
             src={image}
             alt={name}
-            className="w-full h-full object-contain"
+            className="max-w-full max-h-full w-auto h-auto object-contain"
           />
         ) : (
           <div className="w-24 h-24 bg-ferro-gray/20 rounded-lg flex items-center justify-center">
@@ -40,20 +52,44 @@ export default function ProductCard({ name, price, originalPrice, image, rating 
           </div>
         )}
       </div>
-      <div className="p-4">
-        <h3 className="font-medium text-ferro-black mb-2">{name}</h3>
-        <div className="flex items-center gap-2 mb-2">
+
+      <div className="p-4 flex flex-col flex-1">
+        {category && (
+          <span className="self-start mb-2 text-xs font-medium text-ferro-gray bg-ferro-light px-2 py-1 rounded-full">
+            {category}
+          </span>
+        )}
+
+        <h3 className="font-medium text-ferro-black mb-1 line-clamp-2">
+          {name}
+        </h3>
+
+        {description && (
+          <p className="text-xs text-gray-500 mb-3 line-clamp-2">
+            {description}
+          </p>
+        )}
+
+        <div className="mt-auto flex items-center gap-2">
           {originalPrice && (
-            <span className="text-sm text-gray-400 line-through">${originalPrice.toFixed(2)}</span>
+            <span className="text-sm text-gray-400 line-through">
+              ${originalPrice.toFixed(2)}
+            </span>
           )}
-          <span className="text-lg font-bold text-ferro-yellow">${price.toFixed(2)}</span>
+
+          <span className="text-lg font-bold text-ferro-black">
+            ${price.toFixed(2)}
+          </span>
         </div>
+
         {rating > 0 && (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 mt-2">
             {[...Array(5)].map((_, i) => (
               <svg
                 key={i}
-                className={`w-4 h-4 ${i < rating ? "text-ferro-yellow" : "text-gray-300"}`}
+                className={`w-4 h-4 ${
+                  i < rating ? "text-ferro-yellow" : "text-gray-300"
+                }`}
                 fill="currentColor"
                 viewBox="0 0 20 20"
               >

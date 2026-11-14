@@ -99,3 +99,47 @@ export function cerrarSesion(): void {
   sessionStorage.removeItem("auth_token");
   sessionStorage.removeItem("usuario");
 }
+
+// Decodifica la fecha de expiración (exp) del JWT sin verificar la firma.
+// Devuelve true si el token está vencido o no se puede leer.
+export function tokenExpirado(token: string): boolean {
+  try {
+    const parte = token.split(".")[1];
+    if (!parte) {
+      return true;
+    }
+
+    const base64 = parte.replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(atob(base64)) as { exp?: number };
+
+    if (typeof payload.exp !== "number") {
+      return false;
+    }
+
+    return payload.exp * 1000 <= Date.now();
+  } catch {
+    return true;
+  }
+}
+
+// Devuelve la sesión (usuario + token) solo si el token sigue vigente.
+// Si el token ya venció, limpia el almacenamiento y devuelve null para
+// que la interfaz no quede en un estado autenticado incorrecto.
+export function obtenerSesionValida(): {
+  usuario: UsuarioAutenticado;
+  token: string;
+} | null {
+  const token = obtenerToken();
+  const usuario = obtenerUsuarioGuardado();
+
+  if (!token || !usuario) {
+    return null;
+  }
+
+  if (tokenExpirado(token)) {
+    cerrarSesion();
+    return null;
+  }
+
+  return { usuario, token };
+}

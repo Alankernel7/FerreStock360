@@ -108,7 +108,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
           <h2 className="text-lg font-semibold mb-4">Movimientos recientes</h2>
           <div className="space-y-4">
             {dashboard.movimientos_recientes.length === 0 ? (
@@ -119,10 +119,10 @@ export default function DashboardPage() {
               dashboard.movimientos_recientes.map((movement) => (
                 <div
                   key={movement.id_movimiento}
-                  className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0"
+                  className="flex items-start justify-between gap-3 py-2 border-b border-gray-50 last:border-0"
                 >
-                  <div>
-                    <p className="font-medium text-sm">
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm truncate">
                       {movement.producto}
                     </p>
 
@@ -130,12 +130,12 @@ export default function DashboardPage() {
                       {new Date(movement.fecha_movimiento).toLocaleDateString()}
                     </p>
 
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-gray-400 truncate">
                       {movement.usuario}
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <span
                       className={`px-2 py-1 rounded text-xs font-medium ${
                         movement.tipo_movimiento === "entrada"
@@ -158,7 +158,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
           <h2 className="text-lg font-semibold mb-4">Productos con stock bajo</h2>
           <div className="space-y-4">
             {dashboard.stock_bajo.length === 0 ? (
@@ -170,10 +170,10 @@ export default function DashboardPage() {
                 {dashboard.stock_bajo.map((producto) => (
                   <div
                     key={producto.id_producto}
-                    className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0"
+                    className="flex items-start justify-between gap-3 py-2 border-b border-gray-50 last:border-0"
                   >
-                    <div>
-                      <p className="font-medium text-sm">
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm truncate">
                         {producto.nombre}
                       </p>
 
@@ -182,7 +182,7 @@ export default function DashboardPage() {
                       </p>
                     </div>
 
-                    <span className="px-3 py-1 bg-red-100 text-red-700 rounded text-sm font-medium">
+                    <span className="px-3 py-1 bg-red-100 text-red-700 rounded text-sm font-medium flex-shrink-0">
                       {producto.stock_actual} disponibles
                     </span>
                   </div>

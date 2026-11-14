@@ -22,6 +22,20 @@ export async function obtenerProductos(): Promise<Producto[]> {
   return productos;
 }
 
+// Catálogo público: el backend devuelve únicamente productos activos
+// (estado = 1), ordenados del más reciente al más antiguo.
+export async function obtenerProductosPublicos(): Promise<Producto[]> {
+  const response = await fetch(`${API_URL}/productos?estado=activo`);
+
+  if (!response.ok) {
+    throw new Error("No se pudieron obtener los productos");
+  }
+
+  const productos: Producto[] = await response.json();
+
+  return productos;
+}
+
 export async function obtenerProductoPorId(
   id: number
 ): Promise<Producto> {

@@ -20,34 +20,41 @@ const menuItems = [
 
 interface SidebarProps {
   usuario: UsuarioAutenticado;
+  // Estado del drawer en móvil.
+  abierto: boolean;
+  onClose: () => void;
 }
 
 export default function Sidebar({
   usuario,
+  abierto,
+  onClose,
 }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
 
   const handleCerrarSesion = () => {
     cerrarSesion();
+    onClose();
     router.replace("/login");
   };
 
-  return (
-    <aside className="w-64 bg-ferro-black text-white min-h-screen">
+  // Contenido interno del menú (reutilizado en escritorio y móvil).
+  const menuContent = (
+    <>
       <div className="p-4 border-b border-ferro-gray">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-ferro-yellow rounded-full flex items-center justify-center">
+          <div className="w-10 h-10 bg-ferro-yellow rounded-full flex items-center justify-center flex-shrink-0">
             <span className="text-ferro-black font-bold text-sm">{usuario.nombre.charAt(0).toUpperCase()}</span>
           </div>
-          <div>
-            <p className="text-sm font-medium">{usuario.nombre}</p>
-            <p className="text-xs text-gray-400">{usuario.email}</p>
+          <div className="min-w-0">
+            <p className="text-sm font-medium truncate">{usuario.nombre}</p>
+            <p className="text-xs text-gray-400 truncate">{usuario.email}</p>
           </div>
         </div>
       </div>
 
-      <nav className="p-4">
+      <nav className="p-4 flex-1 overflow-y-auto">
         <ul className="space-y-1">
           {menuItems.map((item) => {
             const isActive = pathname === item.href;
@@ -55,13 +62,14 @@ export default function Sidebar({
               <li key={item.href}>
                 <Link
                   href={item.href}
+                  onClick={onClose}
                   className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
                     isActive
                       ? "bg-ferro-yellow text-ferro-black"
                       : "text-gray-300 hover:bg-ferro-dark hover:text-white"
                   }`}
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} />
                   </svg>
                   {item.label}
@@ -72,14 +80,14 @@ export default function Sidebar({
         </ul>
       </nav>
 
-      <div className="p-4 border-t border-ferro-gray mt-auto">
+      <div className="p-4 border-t border-ferro-gray">
         <button
           type="button"
           onClick={handleCerrarSesion}
           className="w-full flex items-center gap-3 px-3 py-2 text-gray-400 hover:text-white transition-colors"
         >
           <svg
-            className="w-5 h-5"
+            className="w-5 h-5 flex-shrink-0"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -95,6 +103,48 @@ export default function Sidebar({
           Cerrar sesión
         </button>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Sidebar de escritorio: estático, siempre visible desde lg */}
+      <aside className="hidden lg:flex lg:flex-col w-64 bg-ferro-black text-white min-h-screen flex-shrink-0">
+        {menuContent}
+      </aside>
+
+      {/* Backdrop del drawer móvil */}
+      {abierto && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Drawer móvil: se desliza desde la izquierda */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-ferro-black text-white flex flex-col transform transition-transform duration-300 ease-in-out lg:hidden ${
+          abierto ? "translate-x-0" : "-translate-x-full"
+        }`}
+        aria-hidden={!abierto}
+      >
+        {/* Botón cerrar (solo en móvil) */}
+        <div className="flex justify-end p-2 lg:hidden">
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 text-gray-400 hover:text-white transition-colors"
+            aria-label="Cerrar menú"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {menuContent}
+      </aside>
+    </>
   );
 }

@@ -21,7 +21,14 @@ const dbConfig = {
 
   options: {
     encrypt: true,
-    trustServerCertificate: false,
+
+    /*
+     * En SQL Server local el certificado suele ser autofirmado.
+     * Se respeta la variable DB_TRUST_SERVER_CERTIFICATE para
+     * permitir la conexión sin exigir un certificado válido.
+     */
+    trustServerCertificate:
+      process.env.DB_TRUST_SERVER_CERTIFICATE === "true",
   },
 };
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import StatCard from "@/components/StatCard";
 import { obtenerDashboard } from "@/services/dashboardService";
 import type { DashboardData } from "@/types/dashboard";
@@ -98,8 +99,14 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-ferro-black mb-6">Dashboard</h1>
-      <p className="text-gray-500 mb-6">Resumen general del sistema</p>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div><h1 className="text-2xl font-bold text-ferro-black">Dashboard</h1><p className="mt-1 text-gray-500">Resumen ejecutivo del sistema</p></div>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/dashboard/productos" className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold hover:bg-gray-50">Productos</Link>
+          <Link href="/dashboard/inventario" className="rounded-lg bg-ferro-yellow px-3 py-2 text-sm font-semibold text-ferro-black hover:brightness-95">Inventario</Link>
+          <Link href="/dashboard/movimientos" className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold hover:bg-gray-50">Movimientos</Link>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {stats.map((stat, index) => (
@@ -127,7 +134,7 @@ export default function DashboardPage() {
                     </p>
 
                     <p className="text-xs text-gray-500">
-                      {new Date(movement.fecha_movimiento).toLocaleDateString()}
+                      {new Intl.DateTimeFormat("es-SV", { dateStyle: "medium", timeStyle: "short" }).format(new Date(movement.fecha_movimiento))}
                     </p>
 
                     <p className="text-xs text-gray-400 truncate">
@@ -159,11 +166,11 @@ export default function DashboardPage() {
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
-          <h2 className="text-lg font-semibold mb-4">Productos con stock bajo</h2>
+          <div className="mb-4 flex items-center justify-between gap-3"><h2 className="text-lg font-semibold">Alertas de inventario</h2><Link href="/dashboard/inventario" className="text-sm font-semibold text-amber-800 hover:underline">Ver inventario</Link></div>
           <div className="space-y-4">
             {dashboard.stock_bajo.length === 0 ? (
               <p className="text-gray-500 text-sm">
-                No hay productos con stock bajo.
+                No hay productos con stock bajo ni agotados.
               </p>
             ) : (
               <div className="space-y-4">
@@ -177,13 +184,11 @@ export default function DashboardPage() {
                         {producto.nombre}
                       </p>
 
-                      <p className="text-xs text-gray-500">
-                        Stock mínimo: {producto.stock_minimo}
-                      </p>
+                      <p className="text-xs text-gray-500">{producto.codigo} · Mínimo: {producto.stock_minimo}</p>
                     </div>
 
-                    <span className="px-3 py-1 bg-red-100 text-red-700 rounded text-sm font-medium flex-shrink-0">
-                      {producto.stock_actual} disponibles
+                    <span className={`px-3 py-1 rounded text-sm font-medium flex-shrink-0 ${producto.estado_inventario === "agotado" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-800"}`}>
+                      {producto.estado_inventario === "agotado" ? "Agotado" : `${producto.stock_actual} disponibles`}
                     </span>
                   </div>
                 ))}

@@ -7,9 +7,11 @@ export interface DashboardResumen {
 
 export interface ProductoStockBajo {
   id_producto: number;
+  codigo: string;
   nombre: string;
   stock_actual: number;
   stock_minimo: number;
+  estado_inventario: "bajo" | "agotado";
 }
 
 export interface MovimientoReciente {

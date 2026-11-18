@@ -10,7 +10,7 @@ import {
   obtenerEstadisticasPublicas,
 } from "@/services/estadisticasPublicasService";
 
-import { registrarUsuario } from "@/services/authService";
+import { obtenerSesionValida, registrarUsuario } from "@/services/authService";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -23,8 +23,12 @@ export default function RegisterPage() {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState<string | null>(null);
+  const [administrador, setAdministrador] = useState(false);
 
   useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setAdministrador(obtenerSesionValida()?.usuario.rol === "admin");
+    }, 0);
     const cargarEstadisticas = async () => {
       try {
         const data = await obtenerEstadisticasPublicas();
@@ -37,7 +41,8 @@ export default function RegisterPage() {
       }
     };
 
-    cargarEstadisticas();
+    void cargarEstadisticas();
+    return () => window.clearTimeout(timer);
   }, []);
 
   const handleSubmit = async (
@@ -112,7 +117,7 @@ export default function RegisterPage() {
           <h1 className="text-5xl font-bold text-white mb-4">
             FerreStock <span className="text-ferro-yellow">360</span>
           </h1>
-          <p className="text-gray-400 text-lg">Únete y gestiona tu inventario</p>
+          <p className="text-gray-400 text-lg">Gestión de inventario y usuarios</p>
           <div className="flex gap-8 mt-12">
             <div className="text-center">
               <p className="text-3xl font-bold text-ferro-yellow">{estadisticas  ? estadisticas.total_productos : "—"}+</p>
@@ -138,10 +143,10 @@ export default function RegisterPage() {
             </h1>
           </div>
 
-          <h2 className="text-2xl font-bold text-ferro-black mb-2">Crea tu cuenta</h2>
-          <p className="text-gray-500 mb-8">Únete y gestiona tu inventario</p>
+          <h2 className="text-2xl font-bold text-ferro-black mb-2">{administrador ? "Crear usuario" : "Registro restringido"}</h2>
+          <p className="text-gray-500 mb-8">{administrador ? "Registra una cuenta para acceder al sistema." : "Las cuentas solo pueden ser creadas por un administrador."}</p>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          {administrador ? <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
                 {error}
@@ -223,14 +228,17 @@ export default function RegisterPage() {
                 ? "Creando cuenta..."
                 : "Registrarse"}
             </button>
-          </form>
+          </form> : <div className="rounded-lg border border-gray-200 bg-gray-50 p-5 text-sm text-gray-600">
+            Solo un administrador con sesión iniciada puede crear cuentas. Inicia sesión o solicita acceso al administrador del sistema.
+            <Link href="/login" className="mt-4 block font-semibold text-ferro-black underline">Ir a iniciar sesión</Link>
+          </div>}
 
-          <p className="text-center mt-6 text-sm text-gray-500">
+          {administrador && <p className="text-center mt-6 text-sm text-gray-500">
             ¿Ya tienes cuenta?{" "}
             <Link href="/login" className="text-ferro-yellow font-medium hover:underline">
               Inicia sesión
             </Link>
-          </p>
+          </p>}
         </div>
       </div>
     </div>

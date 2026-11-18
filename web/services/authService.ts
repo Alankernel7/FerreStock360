@@ -67,10 +67,16 @@ export async function registrarUsuario(
   email: string,
   password: string
 ): Promise<void> {
+  const token = obtenerToken();
+  if (!token) {
+    throw new Error("Solo un administrador con sesión iniciada puede crear usuarios");
+  }
+
   const response = await fetch(`${API_URL}/auth/register`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({
       nombre,

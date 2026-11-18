@@ -25,13 +25,15 @@ const obtenerDashboard = async () => {
        FROM movimientos_inventario) AS total_movimientos
   `);
 
-  // Productos con stock bajo
+  // Alertas actuales: incluye productos agotados y productos bajo mínimo.
   const stockBajoResult = await pool.request().query(`
     SELECT TOP 5
       id_producto,
+      codigo,
       nombre,
       stock_actual,
-      stock_minimo
+      stock_minimo,
+      CASE WHEN stock_actual = 0 THEN 'agotado' ELSE 'bajo' END AS estado_inventario
     FROM productos
     WHERE estado = 1
       AND stock_actual <= stock_minimo

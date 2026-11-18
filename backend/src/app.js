@@ -11,6 +11,10 @@ const categoriasRoutes = require("./routes/categorias");
 const dashboardRoutes = require("./routes/dashboard");
 const authRoutes = require("./routes/auth");
 const estadisticasPublicasRoutes = require( "./routes/estadisticasPublicas");
+const inventarioRoutes = require("./routes/inventario");
+const usuariosRoutes = require("./routes/usuarios");
+const movimientosRoutes = require("./routes/movimientos");
+const notificacionesRoutes = require("./routes/notificaciones");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -67,6 +71,10 @@ app.use("/api", categoriasRoutes);
 app.use("/api", dashboardRoutes);
 app.use("/api", authRoutes);
 app.use("/api", estadisticasPublicasRoutes);
+app.use("/api", inventarioRoutes);
+app.use("/api", usuariosRoutes);
+app.use("/api", movimientosRoutes);
+app.use("/api", notificacionesRoutes);
 
 // Iniciar servidor
 app.listen(PORT, () => {

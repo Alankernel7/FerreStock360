@@ -12,6 +12,34 @@ import { obtenerCategorias } from "@/services/categoriasService";
 
 import type { Producto } from "@/types/producto";
 import type { Categoria } from "@/types/categoria";
+import { useCart } from "@/components/CartProvider";
+
+function AgregarCatalogo({ producto }: { producto: Producto }) {
+  const { agregar } = useCart();
+  const [mensaje, setMensaje] = useState("");
+  const [cargando, setCargando] = useState(false);
+  const agregarProducto = async () => {
+    if (cargando) return;
+    setCargando(true);
+    setMensaje("");
+    try {
+      await agregar(producto);
+      setMensaje("Producto agregado al carrito.");
+    } catch (error) {
+      setMensaje(error instanceof Error ? error.message : "No se pudo agregar el producto.");
+    } finally {
+      setCargando(false);
+    }
+  };
+  return <div className="mt-3 flex items-center gap-3">
+    <button type="button" disabled={cargando || !producto.estado || (producto.stock_disponible ?? producto.stock_actual) < 1}
+      aria-busy={cargando} onClick={() => void agregarProducto()}
+      className="bg-ferro-yellow text-ferro-black text-sm font-semibold px-4 py-2 rounded-lg hover:bg-ferro-yellow-dark disabled:opacity-50">
+      {cargando ? "Agregando…" : "Agregar al carrito"}
+    </button>
+    {mensaje && <span role="status" className="text-xs text-gray-600">{mensaje}</span>}
+  </div>;
+}
 
 type Orden =
   | "recientes"
@@ -386,16 +414,19 @@ export default function HomePage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {productosFiltrados.map((producto) => (
-                  <ProductCard
-                    key={producto.id_producto}
-                    name={producto.nombre}
-                    price={Number(producto.precio)}
-                    image={producto.imagen_1 || producto.imagen_2 || undefined}
-                    description={producto.descripcion ?? undefined}
-                    category={nombreCategoria.get(producto.id_categoria)}
-                  />
-                ))}
+                  {productosFiltrados.map((producto) => (
+                    <div key={producto.id_producto} className="flex flex-col">
+                      <div className="flex-1"><ProductCard
+                        name={producto.nombre}
+                        price={Number(producto.precio)}
+                        image={producto.imagen_1 || producto.imagen_2 || undefined}
+                        description={producto.descripcion ?? undefined}
+                        category={nombreCategoria.get(producto.id_categoria)}
+                        href={`/productos/${producto.id_producto}`}
+                      /></div>
+                      <AgregarCatalogo producto={producto} />
+                    </div>
+                  ))}
               </div>
             )}
           </div>
@@ -432,17 +463,18 @@ export default function HomePage() {
                       />
                     ))
                   : nuevosProductos.map((producto) => (
-                      <ProductCard
-                        key={producto.id_producto}
-                        name={producto.nombre}
-                        price={Number(producto.precio)}
-                        image={
-                          producto.imagen_1 || producto.imagen_2 || undefined
-                        }
-                        description={producto.descripcion ?? undefined}
-                        category={nombreCategoria.get(producto.id_categoria)}
-                        badge="Nuevo"
-                      />
+                      <div key={producto.id_producto} className="flex flex-col">
+                        <div className="flex-1"><ProductCard
+                          name={producto.nombre}
+                          price={Number(producto.precio)}
+                          image={producto.imagen_1 || producto.imagen_2 || undefined}
+                          description={producto.descripcion ?? undefined}
+                          category={nombreCategoria.get(producto.id_categoria)}
+                          badge="Nuevo"
+                          href={`/productos/${producto.id_producto}`}
+                        /></div>
+                        <AgregarCatalogo producto={producto} />
+                      </div>
                     ))}
               </div>
             )}

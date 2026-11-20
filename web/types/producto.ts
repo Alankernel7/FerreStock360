@@ -7,6 +7,7 @@ export interface Producto {
   imagen_1: string | null;
   imagen_2: string | null;
   stock_actual: number;
+  stock_disponible?: number;
   stock_minimo: number;
   id_categoria: number;
   estado: boolean;
@@ -20,6 +21,8 @@ export interface CrearProductoData {
   precio: number;
   imagen_1: string | null;
   imagen_2: string | null;
+  imagen_1_archivo?: File | null;
+  imagen_2_archivo?: File | null;
   stock_actual: number;
   stock_minimo: number;
   id_categoria: number;
@@ -33,6 +36,8 @@ export interface ActualizarProductoData {
   precio: number;
   imagen_1: string | null;
   imagen_2: string | null;
+  imagen_1_archivo?: File | null;
+  imagen_2_archivo?: File | null;
   stock_actual: number;
   stock_minimo: number;
   id_categoria: number;

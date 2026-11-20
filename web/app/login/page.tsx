@@ -89,13 +89,22 @@ export default function LoginPage() {
         "usuario",
         JSON.stringify(data.usuario)
       );
+      window.dispatchEvent(new Event("auth:changed"));
+
+      const destinoSolicitado = new URLSearchParams(window.location.search).get("next");
+      const esDestinoInterno = destinoSolicitado?.startsWith("/") && !destinoSolicitado.startsWith("//");
+      const esRutaPermitidaParaRol = data.usuario.rol === "admin" || !destinoSolicitado?.startsWith("/dashboard");
+      if (destinoSolicitado && esDestinoInterno && esRutaPermitidaParaRol) {
+        router.push(destinoSolicitado);
+        return;
+      }
 
       if (data.usuario.rol === "admin") {
         router.push("/dashboard");
         return;
       }
 
-      if (data.usuario.rol === "empleado") {
+      if (data.usuario.rol === "cliente") {
         router.push("/");
         return;
       }
@@ -207,9 +216,6 @@ export default function LoginPage() {
               />                
               <span className="text-sm text-gray-600">Recordarme</span>
               </label>
-              <a href="#" className="text-sm text-ferro-yellow hover:underline">
-                ¿Olvidaste tu contraseña?
-              </a>
             </div>
 
             <button

@@ -2,7 +2,7 @@ export interface UsuarioAutenticado {
   id_usuario: number;
   nombre: string;
   email: string;
-  rol: "admin" | "empleado";
+  rol: "admin" | "cliente";
 }
 
 export interface LoginResponse {

@@ -154,12 +154,12 @@ END;
 IF NOT EXISTS (
     SELECT 1
     FROM roles
-    WHERE nombre = 'empleado'
+    WHERE nombre = 'cliente'
 )
 BEGIN
     INSERT INTO roles (nombre, descripcion)
     VALUES (
-        'empleado',
-        'Empleado de la ferretería'
+        'cliente',
+        'Cliente de la tienda en línea'
     );
 END;

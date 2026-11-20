@@ -21,7 +21,7 @@ const listarUsuarios = async ({ q, rol, estado }) => {
         u.estado, u.fecha_creacion
       FROM usuarios u INNER JOIN roles r ON r.id_rol = u.id_rol
       WHERE ${filtros.join(" AND ")} ORDER BY u.nombre`),
-    pool.request().query("SELECT id_rol, nombre, descripcion FROM roles ORDER BY nombre"),
+    pool.request().query("SELECT id_rol, nombre, descripcion FROM roles WHERE nombre IN ('admin','cliente') ORDER BY nombre"),
   ]);
   return { usuarios: usuarios.recordset, roles: roles.recordset };
 };

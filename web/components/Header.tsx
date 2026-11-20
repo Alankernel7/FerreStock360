@@ -9,9 +9,12 @@ import {
   cerrarSesion,
   obtenerSesionValida,
 } from "@/services/authService";
+import { useCart } from "@/components/CartProvider";
+import NotificationBell from "@/components/NotificationBell";
 
 export default function Header() {
   const router = useRouter();
+  const { cantidadArticulos } = useCart();
 
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [cuentaAbierta, setCuentaAbierta] = useState(false);
@@ -59,6 +62,7 @@ export default function Header() {
 
   const handleCerrarSesion = () => {
     cerrarSesion();
+    window.dispatchEvent(new Event("auth:changed"));
     setUsuario(null);
     setCuentaAbierta(false);
     setMenuAbierto(false);
@@ -79,6 +83,10 @@ export default function Header() {
 
           {/* Navegación de escritorio */}
           <nav className="hidden md:flex items-center gap-8">
+            <Link href="/carrito" aria-label={`Carrito, ${cantidadArticulos} artículos`} className="relative inline-flex items-center gap-2 hover:text-ferro-yellow transition-colors">
+              <span aria-hidden="true">🛒</span><span>Carrito</span>
+              {cantidadArticulos > 0 && <span className="min-w-5 h-5 px-1 rounded-full bg-ferro-yellow text-ferro-black text-xs font-bold flex items-center justify-center">{cantidadArticulos}</span>}
+            </Link>
             <Link
               href="/"
               className="hover:text-ferro-yellow transition-colors"
@@ -98,6 +106,7 @@ export default function Header() {
               <span className="inline-block w-40 h-8" aria-hidden="true" />
             ) : usuario ? (
               <div className="flex items-center gap-4">
+                {usuario.rol === "cliente" && <NotificationBell cliente />}
                 <span className="text-sm text-gray-300">
                   Bienvenido,{" "}
                   <span className="text-ferro-yellow font-medium">
@@ -155,6 +164,7 @@ export default function Header() {
                       </div>
 
                       <div className="border-t border-gray-100">
+                        {usuario.rol === "cliente" && <Link href="/mis-compras" role="menuitem" onClick={() => setCuentaAbierta(false)} className="block px-4 py-3 text-sm hover:bg-ferro-light transition-colors">Mis pedidos</Link>}
                         <Link
                           href="/perfil"
                           role="menuitem"
@@ -232,6 +242,7 @@ export default function Header() {
         {/* Navegación móvil */}
         {menuAbierto && (
           <div className="md:hidden pb-4 border-t border-ferro-gray mt-1 pt-2 space-y-1">
+            <Link href="/carrito" onClick={() => setMenuAbierto(false)} className="flex items-center gap-2 py-2 hover:text-ferro-yellow transition-colors">🛒 Carrito {cantidadArticulos > 0 && <span className="rounded-full bg-ferro-yellow text-ferro-black px-2 text-xs font-bold">{cantidadArticulos}</span>}</Link>
             <Link
               href="/"
               onClick={() => setMenuAbierto(false)}
@@ -269,6 +280,8 @@ export default function Header() {
                     </div>
                   </div>
 
+                  {usuario.rol === "cliente" && <div className="flex items-center justify-between border-y border-ferro-gray py-2 text-sm"><span>Notificaciones</span><NotificationBell cliente /></div>}
+
                   <Link
                     href="/perfil"
                     onClick={() => setMenuAbierto(false)}
@@ -276,6 +289,8 @@ export default function Header() {
                   >
                     Mi perfil
                   </Link>
+
+                  {usuario.rol === "cliente" && <Link href="/mis-compras" onClick={() => setMenuAbierto(false)} className="block py-2 hover:text-ferro-yellow transition-colors">Mis pedidos</Link>}
 
                   <button
                     type="button"

@@ -87,8 +87,30 @@ const soloAdminActivo = async (req, res, next) => {
   }
 };
 
+// Verifica el JWT cuando viene, pero permite continuar sin token.
+// Se usa para diferenciar la consulta pública de un producto inactivo de la
+// consulta administrativa, sin volver obligatorio el login en el catálogo.
+const tokenOpcional = (req, _res, next) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return next();
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  try {
+    req.usuario = jwt.verify(token, process.env.JWT_SECRET);
+  } catch {
+    // Un token inválido no otorga permisos; la ruta sigue siendo pública.
+  }
+
+  next();
+};
+
 module.exports = {
   verificarToken,
+  tokenOpcional,
   soloAdmin,
   soloAdminActivo,
 };

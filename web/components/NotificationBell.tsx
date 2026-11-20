@@ -8,7 +8,7 @@ import type { Notificacion, NotificacionesData } from "@/types/notificacion";
 
 const iconoCampana = "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9";
 
-export default function NotificationBell() {
+export default function NotificationBell({ cliente = false }: { cliente?: boolean }) {
   const router = useRouter();
   const rootRef = useRef<HTMLDivElement>(null);
   const [abierto, setAbierto] = useState(false);
@@ -20,14 +20,14 @@ export default function NotificationBell() {
   const cargar = useCallback(async () => {
     setCargando(true);
     try {
-      setData(await consultarNotificaciones());
+      setData(await consultarNotificaciones(cliente));
       setError("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudieron cargar las notificaciones");
     } finally {
       setCargando(false);
     }
-  }, []);
+  }, [cliente]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void cargar(); }, 0);
@@ -62,7 +62,7 @@ export default function NotificationBell() {
     if (notification.leida) return;
     setActualizando(notification.id_notificacion);
     try {
-      await marcarNotificacionLeida(notification.id_notificacion);
+      await marcarNotificacionLeida(notification.id_notificacion, cliente);
       setData((prev) => ({
         ...prev,
         no_leidas: Math.max(0, prev.no_leidas - 1),
@@ -78,7 +78,7 @@ export default function NotificationBell() {
   async function marcarTodas() {
     setActualizando("todas");
     try {
-      await marcarTodasNotificacionesLeidas();
+      await marcarTodasNotificacionesLeidas(cliente);
       setData((prev) => ({ ...prev, no_leidas: 0, notificaciones: prev.notificaciones.map((item) => ({ ...item, leida: true })) }));
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudieron marcar como leídas");
@@ -90,7 +90,8 @@ export default function NotificationBell() {
   async function abrirNotificacion(notification: Notificacion) {
     await marcarUna(notification);
     setAbierto(false);
-    if (notification.id_movimiento) router.push("/dashboard/movimientos");
+    if (notification.id_pedido) router.push(`/pedido/${notification.id_pedido}`);
+    else if (notification.id_movimiento) router.push("/dashboard/inventario");
     else if (notification.id_producto) router.push("/dashboard/inventario");
   }
 
@@ -106,7 +107,7 @@ export default function NotificationBell() {
         {error && <p role="alert" className="px-4 py-3 text-xs text-red-700">{error}</p>}
         <div className="max-h-[min(70vh,32rem)] overflow-y-auto">
           {cargando ? <p className="p-6 text-center text-sm text-gray-500">Cargando notificaciones…</p> : data.notificaciones.length === 0 ? <p className="p-6 text-center text-sm text-gray-500">No tienes notificaciones.</p> : data.notificaciones.map((notification) => {
-            const href = notification.id_movimiento ? "/dashboard/movimientos" : notification.id_producto ? "/dashboard/inventario" : "/dashboard";
+            const href = notification.id_pedido ? `/pedido/${notification.id_pedido}` : notification.id_movimiento || notification.id_producto ? "/dashboard/inventario" : "/dashboard";
             return <article key={notification.id_notificacion} className={`relative border-b border-gray-100 last:border-0 ${notification.leida ? "bg-white" : "bg-amber-50/70"}`}>
               <Link href={href} onClick={(event) => { event.preventDefault(); void abrirNotificacion(notification); }} className="block px-4 py-3 pr-10 hover:bg-gray-50">
                 <div className="flex items-start gap-2"><span className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${notification.leida ? "bg-transparent" : "bg-ferro-yellow"}`} aria-hidden="true" /><div className="min-w-0"><p className="text-sm font-semibold">{notification.titulo}</p><p className="mt-0.5 text-xs leading-5 text-gray-600">{notification.descripcion}</p><p className="mt-1 text-[11px] text-gray-400">{new Intl.DateTimeFormat("es-SV", { dateStyle: "medium", timeStyle: "short" }).format(new Date(notification.fecha_creacion))}</p></div></div>
@@ -115,7 +116,7 @@ export default function NotificationBell() {
             </article>;
           })}
         </div>
-        {data.notificaciones.length > 0 && <footer className="border-t border-gray-100 px-4 py-2"><Link href="/dashboard/movimientos" onClick={() => setAbierto(false)} className="text-xs font-semibold text-amber-800 hover:underline">Ver movimientos</Link></footer>}
+        {cliente && data.notificaciones.length > 0 && <footer className="border-t border-gray-100 px-4 py-2"><Link href="/mis-compras" onClick={() => setAbierto(false)} className="text-xs font-semibold text-amber-800 hover:underline">Ver mis pedidos</Link></footer>}
       </section>}
     </div>
   );

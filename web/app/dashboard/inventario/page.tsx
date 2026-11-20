@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { consultarCategoriasInventario, consultarInventario, crearMovimiento } from "@/services/inventarioService";
+import { resolverUrlImagen } from "@/lib/imagenes";
 import type { ArticuloInventario, CategoriaInventario, InventarioData } from "@/types/inventario";
 
 const inputClass = "w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-ferro-black outline-none focus:border-ferro-yellow focus:ring-2 focus:ring-ferro-yellow/30";
@@ -76,8 +77,9 @@ export default function InventarioPage() {
 
   const stats = data?.estadisticas;
   const cards = [
-    ["Unidades disponibles", stats?.unidades_disponibles ?? "—", "text-ferro-black"],
-    ["Con existencias", stats?.con_stock ?? "—", "text-emerald-700"],
+    ["Stock físico", stats?.unidades_fisicas ?? "—", "text-ferro-black"],
+    ["Unidades reservadas", stats?.unidades_reservadas ?? "—", "text-amber-700"],
+    ["Unidades disponibles", stats?.unidades_disponibles ?? "—", "text-emerald-700"],
     ["Agotados", stats?.agotados ?? "—", "text-red-700"],
   ];
 
@@ -104,10 +106,10 @@ export default function InventarioPage() {
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3"><h2 className="font-semibold text-ferro-black">Existencias</h2><span className="text-xs text-gray-500">{data?.productos.length ?? 0} productos</span></div>
-        {cargando ? <p className="p-8 text-center text-sm text-gray-500">Cargando inventario…</p> : data?.productos.length ? <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500"><tr><th className="px-4 py-3">Producto</th><th className="px-4 py-3">Código</th><th className="px-4 py-3">Categoría</th><th className="px-4 py-3">Existencias</th><th className="px-4 py-3">Estado</th><th className="px-4 py-3">Acciones</th></tr></thead><tbody className="divide-y divide-gray-100">{data.productos.map((item) => {
+        {cargando ? <p className="p-8 text-center text-sm text-gray-500">Cargando inventario…</p> : data?.productos.length ? <div className="overflow-x-auto"><table className="w-full min-w-[960px] text-left text-sm"><thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500"><tr><th className="px-4 py-3">Producto</th><th className="px-4 py-3">Código</th><th className="px-4 py-3">Categoría</th><th className="px-4 py-3">Stock físico</th><th className="px-4 py-3">Reservado</th><th className="px-4 py-3">Disponible</th><th className="px-4 py-3">Estado</th><th className="px-4 py-3">Acciones</th></tr></thead><tbody className="divide-y divide-gray-100">{data.productos.map((item) => {
           const status = item.estado_inventario;
           const style = status === "agotado" ? "bg-red-100 text-red-800" : status === "bajo" ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800";
-          return <tr key={item.id_producto} className="hover:bg-gray-50"><td className="px-4 py-3"><div className="flex items-center gap-3"><div className="h-10 w-10 overflow-hidden rounded-lg bg-gray-100">{(item.imagen_1 || item.imagen_2) && <img src={item.imagen_1 || item.imagen_2 || ""} alt="" className="h-full w-full object-cover" />}</div><span className="max-w-[240px] truncate font-medium text-gray-900">{item.nombre}</span></div></td><td className="px-4 py-3 text-gray-600">{item.codigo}</td><td className="px-4 py-3 text-gray-600">{item.categoria}</td><td className="px-4 py-3"><span className="font-semibold">{item.stock_actual}</span><span className="ml-1 text-xs text-gray-500">/ mín. {item.stock_minimo}</span></td><td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${style}`}>{status === "normal" ? "Normal" : status === "bajo" ? "Stock bajo" : "Agotado"}</span></td><td className="px-4 py-3"><button onClick={() => { setError(""); setSeleccionado(item); }} className="rounded-md bg-ferro-yellow px-3 py-2 text-xs font-semibold text-ferro-black hover:brightness-95">Registrar movimiento</button></td></tr>;
+          return <tr key={item.id_producto} className="hover:bg-gray-50"><td className="px-4 py-3"><div className="flex items-center gap-3"><div className="h-10 w-10 overflow-hidden rounded-lg bg-gray-100">{(item.imagen_1 || item.imagen_2) && <img src={resolverUrlImagen(item.imagen_1 || item.imagen_2) || ""} alt="" className="h-full w-full object-cover" />}</div><span className="max-w-[240px] truncate font-medium text-gray-900">{item.nombre}</span></div></td><td className="px-4 py-3 text-gray-600">{item.codigo}</td><td className="px-4 py-3 text-gray-600">{item.categoria}</td><td className="px-4 py-3"><span className="font-semibold">{item.stock_fisico}</span><span className="ml-1 text-xs text-gray-500">/ min. {item.stock_minimo}</span></td><td className="px-4 py-3 font-semibold text-amber-700">{item.unidades_reservadas}</td><td className="px-4 py-3 font-semibold text-emerald-700">{item.stock_disponible}</td><td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${style}`}>{status === "normal" ? "Normal" : status === "bajo" ? "Stock bajo" : "Agotado"}</span></td><td className="px-4 py-3"><button onClick={() => { setError(""); setSeleccionado(item); }} className="rounded-md bg-ferro-yellow px-3 py-2 text-xs font-semibold text-ferro-black hover:brightness-95">Registrar movimiento</button></td></tr>;
         })}</tbody></table></div> : <p className="p-8 text-center text-sm text-gray-500">No hay productos que coincidan con los filtros.</p>}
       </div>
 

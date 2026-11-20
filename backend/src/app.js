@@ -15,6 +15,10 @@ const inventarioRoutes = require("./routes/inventario");
 const usuariosRoutes = require("./routes/usuarios");
 const movimientosRoutes = require("./routes/movimientos");
 const notificacionesRoutes = require("./routes/notificaciones");
+const carritoRoutes = require("./routes/carrito");
+const pedidosRoutes = require("./routes/pedidos");
+const { iniciarLimpiezaPeriodica } = require("./services/reservasService");
+const { obtenerConfiguracionServido } = require("./storage/imageStorage");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -63,6 +67,26 @@ app.use(
 // Middleware para parsear JSON
 app.use(express.json());
 
+// Imágenes de productos servidas desde una ruta controlada.
+// En producción con almacenamiento persistente (Azure Blob, S3, etc.) el
+// proveedor sirve este mismo prefijo y esta ruta deja de usarse.
+const configuracionImagenes = obtenerConfiguracionServido();
+
+if (configuracionImagenes) {
+  app.use(
+    configuracionImagenes.prefijo,
+    express.static(configuracionImagenes.directorio, {
+      index: false,
+      dotfiles: "deny",
+      maxAge: "7d",
+      setHeaders: (res) => {
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+      },
+    })
+  );
+}
+
 // Rutas de la API
 app.use("/api", healthRoutes);
 app.use("/api", dbTestRoutes);
@@ -75,6 +99,12 @@ app.use("/api", inventarioRoutes);
 app.use("/api", usuariosRoutes);
 app.use("/api", movimientosRoutes);
 app.use("/api", notificacionesRoutes);
+app.use("/api", carritoRoutes);
+app.use("/api", pedidosRoutes);
+
+// Ejecuta limpieza de expiraciones incluso si el cliente cerró el navegador.
+// El servicio comprueba si la tabla de reservas ya fue instalada.
+iniciarLimpiezaPeriodica();
 
 // Iniciar servidor
 app.listen(PORT, () => {

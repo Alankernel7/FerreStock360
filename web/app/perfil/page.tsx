@@ -104,6 +104,10 @@ export default function PerfilPage() {
                 </dl>
 
                 <div className="flex flex-wrap gap-3 mt-8 pt-6 border-t border-gray-100">
+                  <Link href="/mis-compras" className="bg-white border border-gray-200 text-ferro-black font-semibold px-5 py-2 rounded-lg hover:bg-gray-50 transition-colors">
+                    Mis compras
+                  </Link>
+
                   {usuario.rol === "admin" && (
                     <Link
                       href="/dashboard"

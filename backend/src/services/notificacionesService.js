@@ -84,9 +84,10 @@ const listarNotificaciones = async () => {
         n.leida, n.fecha_creacion, n.estado_stock
       FROM dbo.notificaciones n
       LEFT JOIN dbo.productos p ON p.id_producto = n.id_producto
+      WHERE n.id_usuario IS NULL
       ORDER BY n.fecha_creacion DESC, n.id_notificacion DESC;
     `);
-    const unread = await new sql.Request(transaction).query("SELECT COUNT_BIG(*) AS total FROM dbo.notificaciones WHERE leida = 0");
+    const unread = await new sql.Request(transaction).query("SELECT COUNT_BIG(*) AS total FROM dbo.notificaciones WHERE leida = 0 AND id_usuario IS NULL");
     await transaction.commit();
     return { notificaciones: result.recordset, no_leidas: Number(unread.recordset[0].total) };
   } catch (error) {
@@ -99,7 +100,7 @@ const marcarNotificacionLeida = async (id) => {
   const pool = await getPool();
   const result = await pool.request().input("id_notificacion", sql.BigInt, id).query(`
     UPDATE dbo.notificaciones SET leida = 1, fecha_lectura = COALESCE(fecha_lectura, SYSDATETIME())
-    OUTPUT INSERTED.id_notificacion WHERE id_notificacion = @id_notificacion;
+    OUTPUT INSERTED.id_notificacion WHERE id_notificacion = @id_notificacion AND id_usuario IS NULL;
   `);
   return result.recordset[0];
 };
@@ -107,8 +108,37 @@ const marcarNotificacionLeida = async (id) => {
 const marcarTodasLeidas = async () => {
   const pool = await getPool();
   await pool.request().query(`
-    UPDATE dbo.notificaciones SET leida = 1, fecha_lectura = SYSDATETIME() WHERE leida = 0;
+    UPDATE dbo.notificaciones SET leida = 1, fecha_lectura = SYSDATETIME() WHERE leida = 0 AND id_usuario IS NULL;
   `);
 };
 
-module.exports = { bloquearNotificaciones, sincronizarAlertaStock, listarNotificaciones, marcarNotificacionLeida, marcarTodasLeidas };
+const listarNotificacionesCliente = async (idUsuario) => {
+  const pool = await getPool();
+  const result = await pool.request().input("id_usuario", sql.Int, idUsuario).query(`
+    SELECT TOP (50) id_notificacion,tipo,titulo,descripcion,id_pedido,
+      CAST(NULL AS INT) AS id_producto,CAST(NULL AS NVARCHAR(300)) AS producto,
+      CAST(NULL AS INT) AS id_movimiento,leida,fecha_creacion,CAST(NULL AS NVARCHAR(20)) AS estado_stock
+    FROM dbo.notificaciones WHERE id_usuario=@id_usuario
+    ORDER BY fecha_creacion DESC,id_notificacion DESC;
+    SELECT COUNT_BIG(*) AS total FROM dbo.notificaciones WHERE id_usuario=@id_usuario AND leida=0;
+  `);
+  return { notificaciones: result.recordsets[0], no_leidas: Number(result.recordsets[1][0].total) };
+};
+
+const marcarNotificacionClienteLeida = async (idUsuario, id) => {
+  const pool = await getPool();
+  const result = await pool.request().input("id_usuario", sql.Int, idUsuario).input("id_notificacion", sql.BigInt, id).query(`
+    UPDATE dbo.notificaciones SET leida=1,fecha_lectura=COALESCE(fecha_lectura,SYSUTCDATETIME())
+    OUTPUT INSERTED.id_notificacion WHERE id_notificacion=@id_notificacion AND id_usuario=@id_usuario;
+  `);
+  return result.recordset[0];
+};
+
+const marcarTodasClienteLeidas = async (idUsuario) => {
+  const pool = await getPool();
+  await pool.request().input("id_usuario", sql.Int, idUsuario).query(`
+    UPDATE dbo.notificaciones SET leida=1,fecha_lectura=SYSUTCDATETIME() WHERE id_usuario=@id_usuario AND leida=0;
+  `);
+};
+
+module.exports = { bloquearNotificaciones, sincronizarAlertaStock, listarNotificaciones, marcarNotificacionLeida, marcarTodasLeidas, listarNotificacionesCliente, marcarNotificacionClienteLeida, marcarTodasClienteLeidas };

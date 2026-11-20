@@ -2,6 +2,7 @@ const bcrypt = require("bcryptjs");
 const { listarUsuarios, obtenerRol, existeEmail, crearUsuarioAdmin, actualizarUsuarioAdmin, actualizarEstadoUsuario, existeUsuario } = require("../services/usuariosService");
 
 const emailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const rolesPermitidos = new Set(["admin", "cliente"]);
 const validarBase = ({ nombre, email, id_rol, estado }) => {
   const errores = [];
   if (typeof nombre !== "string" || !nombre.trim()) errores.push("El nombre es obligatorio");
@@ -44,7 +45,9 @@ const postUsuario = async (req, res) => {
   }
   if (errores.length) return res.status(400).json({ ok: false, message: errores[0], errores });
   try {
-    if (!(await obtenerRol(rol))) return res.status(400).json({ ok: false, message: "El rol seleccionado no existe" });
+    const rolSeleccionado = await obtenerRol(rol);
+    if (!rolSeleccionado) return res.status(400).json({ ok: false, message: "El rol seleccionado no existe" });
+    if (!rolesPermitidos.has(rolSeleccionado.nombre)) return res.status(400).json({ ok: false, message: "Solo se permiten los roles admin y cliente" });
     const email = body.email.trim().toLowerCase();
     if (await existeEmail(email)) return res.status(409).json({ ok: false, message: "Ya existe un usuario con ese correo" });
     const password = await bcrypt.hash(body.password, 12);
@@ -71,7 +74,9 @@ const putUsuario = async (req, res) => {
   }
   try {
     if (!(await existeUsuario(id))) return res.status(404).json({ ok: false, message: "Usuario no encontrado" });
-    if (!(await obtenerRol(rol))) return res.status(400).json({ ok: false, message: "El rol seleccionado no existe" });
+    const rolSeleccionado = await obtenerRol(rol);
+    if (!rolSeleccionado) return res.status(400).json({ ok: false, message: "El rol seleccionado no existe" });
+    if (!rolesPermitidos.has(rolSeleccionado.nombre)) return res.status(400).json({ ok: false, message: "Solo se permiten los roles admin y cliente" });
     const email = body.email.trim().toLowerCase();
     if (await existeEmail(email, id)) return res.status(409).json({ ok: false, message: "Ya existe un usuario con ese correo" });
     const password = body.password ? await bcrypt.hash(body.password, 12) : null;

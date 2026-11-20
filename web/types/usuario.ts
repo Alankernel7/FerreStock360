@@ -1,6 +1,6 @@
 export interface RolUsuario {
   id_rol: number;
-  nombre: string;
+  nombre: "admin" | "cliente";
   descripcion?: string | null;
 }
 
@@ -9,7 +9,7 @@ export interface UsuarioAdministrable {
   nombre: string;
   email: string;
   id_rol: number;
-  rol: string;
+  rol: "admin" | "cliente";
   estado: boolean;
   fecha_creacion: string;
 }

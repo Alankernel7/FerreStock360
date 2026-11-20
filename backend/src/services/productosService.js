@@ -2,6 +2,7 @@
 // Consulta, registra, actualiza y elimina productos en SQL Server.
 
 const { getPool, sql } = require("../config/database");
+const { limpiarReservasVencidas } = require("./reservasService");
 
 // Consulta los productos.
 // Con soloActivos = true devuelve únicamente los productos activos (estado = 1),
@@ -9,9 +10,19 @@ const { getPool, sql } = require("../config/database");
 // Sin ese flag devuelve todos (uso administrativo: activos e inactivos).
 const obtenerProductos = async ({ soloActivos = false } = {}) => {
   const pool = await getPool();
-  const consulta = soloActivos
-    ? "select * from productos where estado = 1 order by fecha_creacion desc"
-    : "select * from productos";
+  await limpiarReservasVencidas(pool);
+  const consulta = `SELECT p.*,
+      CASE WHEN p.stock_actual > COALESCE(r.unidades_reservadas, 0)
+           THEN p.stock_actual - COALESCE(r.unidades_reservadas, 0) ELSE 0 END AS stock_disponible
+    FROM dbo.productos p
+    OUTER APPLY (
+      SELECT SUM(ri.cantidad) AS unidades_reservadas
+      FROM dbo.reservas_inventario ri
+      WHERE ri.id_producto = p.id_producto AND (
+        (ri.estado = N'activa' AND ri.fecha_expiracion > SYSUTCDATETIME()) OR ri.estado = N'confirmada'
+      )
+    ) r${soloActivos ? " WHERE p.estado = 1" : ""}
+    ${soloActivos ? "ORDER BY p.fecha_creacion DESC" : ""}`;
   const result = await pool.request().query(consulta);
   return result.recordset;
 };
@@ -19,10 +30,22 @@ const obtenerProductos = async ({ soloActivos = false } = {}) => {
 // Consulta un producto por ID
 const obtenerProductoPorId = async (id) => {
   const pool = await getPool();
+  await limpiarReservasVencidas(pool);
   const result = await pool
     .request()
     .input("id_producto", sql.Int, id)
-    .query("select * from productos where id_producto = @id_producto");
+    .query(`SELECT p.*,
+      CASE WHEN p.stock_actual > COALESCE(r.unidades_reservadas, 0)
+           THEN p.stock_actual - COALESCE(r.unidades_reservadas, 0) ELSE 0 END AS stock_disponible
+      FROM dbo.productos p
+      OUTER APPLY (
+        SELECT SUM(ri.cantidad) AS unidades_reservadas
+        FROM dbo.reservas_inventario ri
+        WHERE ri.id_producto = p.id_producto AND (
+          (ri.estado = N'activa' AND ri.fecha_expiracion > SYSUTCDATETIME()) OR ri.estado = N'confirmada'
+        )
+      ) r
+      WHERE p.id_producto = @id_producto`);
   return result.recordset[0];
 };
 
@@ -73,6 +96,24 @@ const contarAlertasPorProducto = async (id) => {
   return result.recordset[0].total;
 };
 
+// Comprueba si una ruta de imagen sigue referenciada por algún producto.
+// Se consulta siempre después de guardar los cambios en SQL Server para no
+// eliminar un archivo que otro registro todavía utiliza.
+const estaImagenEnUso = async (ruta) => {
+  if (!ruta) return false;
+
+  const pool = await getPool();
+  const result = await pool
+    .request()
+    .input("ruta", sql.NVarChar(500), ruta)
+    .query(`
+      select count(*) as total
+      from productos
+      where imagen_1 = @ruta or imagen_2 = @ruta
+    `);
+  return result.recordset[0].total > 0;
+};
+
 // Inserta un nuevo producto utilizando parámetros SQL
 const crearProducto = async (datos) => {
   const pool = await getPool();
@@ -99,20 +140,39 @@ const crearProducto = async (datos) => {
 // Actualiza un producto existente utilizando parámetros SQL
 const actualizarProducto = async (id, datos) => {
   const pool = await getPool();
-  const result = await pool
-    .request()
-    .input("id_producto", sql.Int, id)
-    .input("nombre", sql.NVarChar(150), datos.nombre)
-    .input("descripcion", sql.NVarChar(500), datos.descripcion)
-    .input("codigo", sql.NVarChar(50), datos.codigo)
-    .input("precio", sql.Decimal(10, 2), datos.precio)
-    .input("imagen_1", sql.VarChar(sql.MAX), datos.imagen_1)
-    .input("imagen_2", sql.VarChar(sql.MAX), datos.imagen_2)
-    .input("stock_actual", sql.Int, datos.stock_actual)
-    .input("stock_minimo", sql.Int, datos.stock_minimo)
-    .input("id_categoria", sql.Int, datos.id_categoria)
-    .input("estado", sql.Bit, datos.estado)
-    .query(`
+  const tx = new sql.Transaction(pool);
+  await tx.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
+  try {
+    await limpiarReservasVencidas(tx);
+    const producto = await new sql.Request(tx).input("id_producto", sql.Int, id)
+      .query("SELECT id_producto FROM dbo.productos WITH (UPDLOCK, HOLDLOCK) WHERE id_producto = @id_producto");
+    if (!producto.recordset.length) {
+      const error = new Error("El producto no existe"); error.status = 404; throw error;
+    }
+    const reservas = await new sql.Request(tx).input("id_producto", sql.Int, id).query(`
+      SELECT COALESCE(SUM(cantidad), 0) AS total
+      FROM dbo.reservas_inventario WITH (UPDLOCK, HOLDLOCK)
+      WHERE id_producto = @id_producto AND (
+        (estado = N'activa' AND fecha_expiracion > SYSUTCDATETIME()) OR estado = N'confirmada'
+      )
+    `);
+    if (datos.stock_actual < reservas.recordset[0].total) {
+      const error = new Error(`El stock físico no puede quedar por debajo de las ${reservas.recordset[0].total} unidades reservadas`);
+      error.status = 409; throw error;
+    }
+    const result = await new sql.Request(tx)
+      .input("id_producto", sql.Int, id)
+      .input("nombre", sql.NVarChar(150), datos.nombre)
+      .input("descripcion", sql.NVarChar(500), datos.descripcion)
+      .input("codigo", sql.NVarChar(50), datos.codigo)
+      .input("precio", sql.Decimal(10, 2), datos.precio)
+      .input("imagen_1", sql.VarChar(sql.MAX), datos.imagen_1)
+      .input("imagen_2", sql.VarChar(sql.MAX), datos.imagen_2)
+      .input("stock_actual", sql.Int, datos.stock_actual)
+      .input("stock_minimo", sql.Int, datos.stock_minimo)
+      .input("id_categoria", sql.Int, datos.id_categoria)
+      .input("estado", sql.Bit, datos.estado)
+      .query(`
       update productos
       set nombre = @nombre,
           descripcion = @descripcion,
@@ -127,7 +187,12 @@ const actualizarProducto = async (id, datos) => {
       output inserted.*
       where id_producto = @id_producto
     `);
-  return result.recordset[0];
+    await tx.commit();
+    return result.recordset[0];
+  } catch (error) {
+    await tx.rollback().catch(() => {});
+    throw error;
+  }
 };
 
 // Elimina un producto por ID utilizando un parámetro SQL
@@ -143,6 +208,7 @@ const eliminarProducto = async (id) => {
 module.exports = {
   obtenerProductos,
   obtenerProductoPorId,
+  estaImagenEnUso,
   existeProductoPorCodigo,
   existeCategoriaPorId,
   contarMovimientosPorProducto,

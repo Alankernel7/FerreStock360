@@ -88,13 +88,6 @@ export default function DashboardPage() {
       changeType: "negative" as const,
       icon: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z",
     },
-    {
-      title: "Movimientos",
-      value: dashboard.resumen.total_movimientos,
-      change: "",
-      changeType: "neutral" as const,
-      icon: "M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4",
-    },
   ];
 
   return (
@@ -104,7 +97,6 @@ export default function DashboardPage() {
         <div className="flex flex-wrap gap-2">
           <Link href="/dashboard/productos" className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold hover:bg-gray-50">Productos</Link>
           <Link href="/dashboard/inventario" className="rounded-lg bg-ferro-yellow px-3 py-2 text-sm font-semibold text-ferro-black hover:brightness-95">Inventario</Link>
-          <Link href="/dashboard/movimientos" className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold hover:bg-gray-50">Movimientos</Link>
         </div>
       </div>
 
@@ -115,56 +107,6 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
-          <h2 className="text-lg font-semibold mb-4">Movimientos recientes</h2>
-          <div className="space-y-4">
-            {dashboard.movimientos_recientes.length === 0 ? (
-              <p className="text-gray-500 text-sm">
-                No hay movimientos registrados.
-              </p>
-            ) : (
-              dashboard.movimientos_recientes.map((movement) => (
-                <div
-                  key={movement.id_movimiento}
-                  className="flex items-start justify-between gap-3 py-2 border-b border-gray-50 last:border-0"
-                >
-                  <div className="min-w-0">
-                    <p className="font-medium text-sm truncate">
-                      {movement.producto}
-                    </p>
-
-                    <p className="text-xs text-gray-500">
-                      {new Intl.DateTimeFormat("es-SV", { dateStyle: "medium", timeStyle: "short" }).format(new Date(movement.fecha_movimiento))}
-                    </p>
-
-                    <p className="text-xs text-gray-400 truncate">
-                      {movement.usuario}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <span
-                      className={`px-2 py-1 rounded text-xs font-medium ${
-                        movement.tipo_movimiento === "entrada"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-red-100 text-red-700"
-                      }`}
-                    >
-                      {movement.tipo_movimiento === "entrada"
-                        ? "Entrada"
-                        : "Salida"}
-                    </span>
-
-                    <span className="text-sm font-medium">
-                      {movement.cantidad}
-                    </span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
           <div className="mb-4 flex items-center justify-between gap-3"><h2 className="text-lg font-semibold">Alertas de inventario</h2><Link href="/dashboard/inventario" className="text-sm font-semibold text-amber-800 hover:underline">Ver inventario</Link></div>
           <div className="space-y-4">

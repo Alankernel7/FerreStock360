@@ -8,6 +8,7 @@ import {
   eliminarProducto,
 } from "@/services/productosService";
 import { obtenerCategorias } from "@/services/categoriasService";
+import { resolverUrlImagen } from "@/lib/imagenes";
 
 import type { Producto } from "@/types/producto";
 import type { Categoria } from "@/types/categoria";
@@ -318,8 +319,9 @@ export default function ProductosPage() {
                               {producto.imagen_1 || producto.imagen_2 ? (
                                 <img
                                   src={
-                                    (producto.imagen_1 ||
-                                      producto.imagen_2) as string
+                                    resolverUrlImagen(
+                                      producto.imagen_1 || producto.imagen_2
+                                    ) as string
                                   }
                                   alt={producto.nombre}
                                   className="w-full h-full object-contain"

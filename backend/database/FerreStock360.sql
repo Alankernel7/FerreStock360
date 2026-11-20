@@ -17,7 +17,7 @@ GO
 
 -- ============================================
 -- Tabla: roles
--- almacena los roles del sistema (admin, empleado)
+-- almacena los roles del sistema (admin, cliente)
 -- ============================================
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='roles' AND xtype='U')
 BEGIN
@@ -138,9 +138,9 @@ BEGIN
 END
 GO
 
-IF NOT EXISTS (SELECT 1 FROM roles WHERE nombre = 'empleado')
+IF NOT EXISTS (SELECT 1 FROM roles WHERE nombre = 'cliente')
 BEGIN
-    INSERT INTO roles (nombre, descripcion) VALUES ('empleado', 'Empleado de la ferretería');
+    INSERT INTO roles (nombre, descripcion) VALUES ('cliente', 'Cliente de la tienda en línea');
 END
 GO
 

@@ -5,6 +5,9 @@ export interface ArticuloInventario {
   imagen_1: string | null;
   imagen_2: string | null;
   stock_actual: number;
+  stock_fisico: number;
+  unidades_reservadas: number;
+  stock_disponible: number;
   stock_minimo: number;
   id_categoria: number;
   categoria: string;
@@ -17,6 +20,8 @@ export interface CategoriaInventario {
 }
 
 export interface EstadisticasInventario {
+  unidades_fisicas: number;
+  unidades_reservadas: number;
   unidades_disponibles: number;
   total_productos: number;
   con_stock: number;

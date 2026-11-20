@@ -4,6 +4,7 @@
 const {
   obtenerProductos,
   obtenerProductoPorId,
+  estaImagenEnUso,
   existeProductoPorCodigo,
   existeCategoriaPorId,
   contarMovimientosPorProducto,
@@ -12,6 +13,9 @@ const {
   actualizarProducto,
   eliminarProducto,
 } = require("../services/productosService");
+
+const { guardarImagen, eliminarImagen } = require("../storage/imageStorage");
+const { CAMPOS_ARCHIVO } = require("../middleware/subirImagenesProducto");
 
 // Límites según el esquema SQL Server.
 const MAX_NOMBRE = 150;
@@ -181,6 +185,64 @@ const validarProducto = (entrada) => {
   };
 };
 
+// --- Utilidades de imágenes ---
+
+// Guarda en el almacenamiento los archivos recibidos por multer.
+// Devuelve la ranura (imagen_1 / imagen_2) y la ruta pública generada.
+// Cada archivo se registra en `rutasGuardadas` en cuanto se escribe, para
+// poder limpiarlo si falla la escritura del siguiente archivo.
+const guardarArchivosNuevos = async (req, rutasGuardadas) => {
+  const guardadas = [];
+
+  for (const [campo, ranura] of Object.entries(CAMPOS_ARCHIVO)) {
+    const archivo = req.files && req.files[campo] ? req.files[campo][0] : null;
+
+    if (!archivo) continue;
+
+    const guardada = await guardarImagen({
+      buffer: archivo.buffer,
+      mimetype: archivo.mimetype,
+    });
+
+    rutasGuardadas.push(guardada.ruta);
+    guardadas.push({ ranura, ruta: guardada.ruta });
+  }
+
+  return guardadas;
+};
+
+// Elimina archivos recién guardados cuando la operación no llegó a SQL Server.
+const eliminarRutas = async (rutas) => {
+  for (const ruta of rutas) {
+    try {
+      await eliminarImagen(ruta);
+    } catch (error) {
+      console.error("No se pudo eliminar la imagen temporal:", error.message);
+    }
+  }
+};
+
+// Elimina imágenes anteriores que ya no están referenciadas por ningún
+// producto. Solo afecta archivos locales administrados por el backend.
+const eliminarImagenesSinUso = async (rutas, rutasConservadas) => {
+  const vistas = new Set();
+
+  for (const ruta of rutas) {
+    if (!ruta || vistas.has(ruta) || rutasConservadas.has(ruta)) continue;
+    vistas.add(ruta);
+
+    try {
+      const enUso = await estaImagenEnUso(ruta);
+
+      if (!enUso) {
+        await eliminarImagen(ruta);
+      }
+    } catch (error) {
+      console.error("No se pudo verificar o eliminar la imagen:", error.message);
+    }
+  }
+};
+
 // GET /api/productos
 // Acepta ?estado=activo para devolver solo productos activos (catálogo público).
 // Sin el parámetro devuelve todos (módulo administrativo: activos e inactivos).
@@ -202,6 +264,8 @@ const getProductos = async (req, res) => {
 };
 
 // GET /api/productos/:id
+// Los productos inactivos solo se devuelven a un administrador autenticado.
+// La tienda pública recibe 404 para un producto inactivo.
 const getProductoById = async (req, res) => {
   try {
     const id = parseInt(req.params.id);
@@ -213,9 +277,19 @@ const getProductoById = async (req, res) => {
       });
     }
 
+    const soloActivos =
+      typeof req.query.estado === "string" &&
+      req.query.estado.trim().toLowerCase() === "activo";
+
+    const esAdmin = Boolean(req.usuario && req.usuario.rol === "admin");
+
     const producto = await obtenerProductoPorId(id);
 
-    if (!producto) {
+    if (
+      !producto ||
+      (soloActivos && !producto.estado) ||
+      (!producto.estado && !esAdmin)
+    ) {
       return res.status(404).json({
         ok: false,
         message: "Producto no encontrado",
@@ -235,6 +309,9 @@ const getProductoById = async (req, res) => {
 
 // POST /api/productos
 const createProducto = async (req, res) => {
+  const rutasNuevas = [];
+  let completado = false;
+
   try {
     const { errores, datos } = validarProducto(req.body || {});
 
@@ -254,7 +331,16 @@ const createProducto = async (req, res) => {
       return res.status(409).json({ ok: false, message: "Ya existe un producto con ese código" });
     }
 
+    // Solo se escriben archivos después de validar los datos del producto.
+    const archivosGuardados = await guardarArchivosNuevos(req, rutasNuevas);
+
+    for (const { ranura, ruta } of archivosGuardados) {
+      datos[ranura] = ruta;
+    }
+
     const nuevoProducto = await crearProducto(datos);
+
+    completado = true;
 
     res.status(201).json({
       ok: true,
@@ -262,6 +348,10 @@ const createProducto = async (req, res) => {
       data: nuevoProducto,
     });
   } catch (err) {
+    if (!completado) {
+      await eliminarRutas(rutasNuevas);
+    }
+
     console.error("Error al crear producto:", err.message);
 
     if (err.message.includes("UNIQUE") || err.message.includes("duplicate") || err.number === 2627 || err.number === 2601) {
@@ -270,6 +360,9 @@ const createProducto = async (req, res) => {
     if (err.message.includes("FOREIGN KEY") || err.message.includes("FK_") || err.number === 547) {
       return res.status(400).json({ ok: false, message: "La categoría especificada no existe" });
     }
+    if (err.status) {
+      return res.status(err.status).json({ ok: false, message: err.message });
+    }
 
     res.status(500).json({ ok: false, message: "Error al registrar el producto" });
   }
@@ -277,6 +370,9 @@ const createProducto = async (req, res) => {
 
 // PUT /api/productos/:id
 const updateProducto = async (req, res) => {
+  const rutasNuevas = [];
+  let completado = false;
+
   try {
     const id = parseInt(req.params.id);
 
@@ -322,7 +418,23 @@ const updateProducto = async (req, res) => {
       return res.status(409).json({ ok: false, message: "Ya existe otro producto con ese código" });
     }
 
+    // Los archivos nuevos reemplazan la ruta conservada de su ranura.
+    const archivosGuardados = await guardarArchivosNuevos(req, rutasNuevas);
+
+    for (const { ranura, ruta } of archivosGuardados) {
+      datos[ranura] = ruta;
+    }
+
     const productoActualizado = await actualizarProducto(id, datos);
+
+    completado = true;
+
+    // Limpia imágenes anteriores reemplazadas o eliminadas, siempre que
+    // ningún otro producto las siga usando.
+    await eliminarImagenesSinUso(
+      [existente.imagen_1, existente.imagen_2],
+      new Set([productoActualizado.imagen_1, productoActualizado.imagen_2])
+    );
 
     res.json({
       ok: true,
@@ -330,6 +442,10 @@ const updateProducto = async (req, res) => {
       data: productoActualizado,
     });
   } catch (err) {
+    if (!completado) {
+      await eliminarRutas(rutasNuevas);
+    }
+
     console.error("Error al actualizar producto:", err.message);
 
     if (err.message.includes("UNIQUE") || err.message.includes("duplicate") || err.number === 2627 || err.number === 2601) {
@@ -369,6 +485,12 @@ const deleteProducto = async (req, res) => {
     }
 
     await eliminarProducto(id);
+
+    // Elimina los archivos locales que ya no referencia ningún producto.
+    await eliminarImagenesSinUso(
+      [existente.imagen_1, existente.imagen_2],
+      new Set()
+    );
 
     res.json({
       ok: true,

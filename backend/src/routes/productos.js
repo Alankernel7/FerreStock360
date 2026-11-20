@@ -13,29 +13,32 @@
 const express = require("express");
 const router = express.Router();
 const { getProductos, getProductoById, createProducto, updateProducto, deleteProducto } = require("../controllers/productosController");
-const {verificarToken, soloAdmin } = require("../middleware/authMiddleware");
+const {verificarToken, tokenOpcional, soloAdminActivo } = require("../middleware/authMiddleware");
+const { subirImagenesProducto } = require("../middleware/subirImagenesProducto");
 
 router.get("/productos", getProductos);
-router.get("/productos/:id", getProductoById);
+router.get("/productos/:id", tokenOpcional, getProductoById);
 
 router.post(
   "/productos",
   verificarToken,
-  soloAdmin,
+  soloAdminActivo,
+  subirImagenesProducto,
   createProducto
 );
 
 router.put(
   "/productos/:id",
   verificarToken,
-  soloAdmin,
+  soloAdminActivo,
+  subirImagenesProducto,
   updateProducto
 );
 
 router.delete(
   "/productos/:id",
   verificarToken,
-  soloAdmin,
+  soloAdminActivo,
   deleteProducto
 );
 

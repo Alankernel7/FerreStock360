@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import { crearProducto } from "@/services/productosService";
 import { obtenerCategorias } from "@/services/categoriasService";
+import ProductImageUploader from "@/components/ProductImageUploader";
 
 import type { Categoria } from "@/types/categoria";
 
@@ -19,8 +20,6 @@ interface Errores {
   codigo?: string;
   descripcion?: string;
   precio?: string;
-  imagen_1?: string;
-  imagen_2?: string;
   stock_actual?: string;
   stock_minimo?: string;
   id_categoria?: string;
@@ -68,16 +67,6 @@ function validarEntero(valor: string, etiqueta: string): string | undefined {
   return undefined;
 }
 
-function validarImagen(valor: string, etiqueta: string): string | undefined {
-  const limpio = valor.trim();
-  if (!limpio) return undefined;
-  if (limpio.length > 500)
-    return `La ruta de ${etiqueta} es demasiado larga.`;
-  if (!/^(\/|https?:\/\/)/i.test(limpio))
-    return `La ruta de ${etiqueta} debe comenzar con / o http(s)://`;
-  return undefined;
-}
-
 export default function NuevoProductoPage() {
   const router = useRouter();
 
@@ -92,8 +81,8 @@ export default function NuevoProductoPage() {
   const [descripcion, setDescripcion] = useState("");
   const [codigo, setCodigo] = useState("");
   const [precio, setPrecio] = useState("");
-  const [imagen1, setImagen1] = useState("");
-  const [imagen2, setImagen2] = useState("");
+  const [imagen1File, setImagen1File] = useState<File | null>(null);
+  const [imagen2File, setImagen2File] = useState<File | null>(null);
   const [stockActual, setStockActual] = useState("0");
   const [stockMinimo, setStockMinimo] = useState("5");
   const [idCategoria, setIdCategoria] = useState("");
@@ -128,8 +117,6 @@ export default function NuevoProductoPage() {
     codigo: validarCodigo(codigo),
     descripcion: validarDescripcion(descripcion),
     precio: validarPrecio(precio),
-    imagen_1: validarImagen(imagen1, "la imagen 1"),
-    imagen_2: validarImagen(imagen2, "la imagen 2"),
     stock_actual: validarEntero(stockActual, "El stock actual"),
     stock_minimo: validarEntero(stockMinimo, "El stock mínimo"),
     id_categoria: idCategoria ? undefined : "Debes seleccionar una categoría.",
@@ -154,8 +141,10 @@ export default function NuevoProductoPage() {
         descripcion: descripcion.trim(),
         codigo: codigo.trim(),
         precio: Number(precio),
-        imagen_1: imagen1.trim() || null,
-        imagen_2: imagen2.trim() || null,
+        imagen_1: null,
+        imagen_2: null,
+        imagen_1_archivo: imagen1File,
+        imagen_2_archivo: imagen2File,
         stock_actual: stockActual.trim() === "" ? 0 : Number(stockActual),
         stock_minimo: stockMinimo.trim() === "" ? 5 : Number(stockMinimo),
         id_categoria: Number(idCategoria),
@@ -383,61 +372,31 @@ export default function NuevoProductoPage() {
           </div>
 
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium mb-2">
-              Ruta de imagen 1
-            </label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <ProductImageUploader
+                etiqueta="Imagen principal"
+                ayuda="JPG, JPEG, PNG o WEBP. Máximo 5 MB."
+                archivo={imagen1File}
+                imagenActual={null}
+                onArchivoSeleccionado={setImagen1File}
+                onEliminarActual={() => setImagen1File(null)}
+                deshabilitado={guardando}
+              />
 
-            <input
-              type="text"
-              value={imagen1}
-              onChange={(e) => {
-                setImagen1(e.target.value);
-                limpiarError("imagen_1");
-              }}
-              onBlur={() =>
-                setErrores((p) => ({
-                  ...p,
-                  imagen_1: validarImagen(imagen1, "la imagen 1"),
-                }))
-              }
-              className={inputClass("imagen_1")}
-              placeholder="/products/mi-producto.jpg"
-            />
+              <ProductImageUploader
+                etiqueta="Imagen secundaria (opcional)"
+                ayuda="Se mostrará en la galería del producto."
+                archivo={imagen2File}
+                imagenActual={null}
+                onArchivoSeleccionado={setImagen2File}
+                onEliminarActual={() => setImagen2File(null)}
+                deshabilitado={guardando}
+              />
+            </div>
 
-            {errores.imagen_1 ? (
-              <p className="text-xs text-red-600 mt-1">{errores.imagen_1}</p>
-            ) : (
-              <p className="text-xs text-gray-400 mt-1">
-                La imagen debe existir dentro de web/public/products.
-              </p>
-            )}
-          </div>
-
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium mb-2">
-              Ruta de imagen 2 (opcional)
-            </label>
-
-            <input
-              type="text"
-              value={imagen2}
-              onChange={(e) => {
-                setImagen2(e.target.value);
-                limpiarError("imagen_2");
-              }}
-              onBlur={() =>
-                setErrores((p) => ({
-                  ...p,
-                  imagen_2: validarImagen(imagen2, "la imagen 2"),
-                }))
-              }
-              className={inputClass("imagen_2")}
-              placeholder="/products/mi-producto-2.jpg"
-            />
-
-            {errores.imagen_2 && (
-              <p className="text-xs text-red-600 mt-1">{errores.imagen_2}</p>
-            )}
+            <p className="text-xs text-gray-400 mt-3">
+              Puedes cargar hasta dos imágenes por producto.
+            </p>
           </div>
 
           <div className="md:col-span-2">
@@ -496,7 +455,11 @@ export default function NuevoProductoPage() {
             disabled={guardando}
             className="bg-ferro-yellow text-ferro-black font-semibold px-5 py-2 rounded-lg hover:opacity-90 transition disabled:opacity-50"
           >
-            {guardando ? "Guardando..." : "Guardar producto"}
+            {guardando
+              ? imagen1File || imagen2File
+                ? "Subiendo imágenes..."
+                : "Guardando..."
+              : "Guardar producto"}
           </button>
         </div>
       </form>

@@ -1,14 +1,11 @@
 const express = require("express");
 
-const {
-  login,
-  register,
-} = require("../controllers/authController");
-const { verificarToken, soloAdminActivo } = require("../middleware/authMiddleware");
+const { login, register } = require("../controllers/authController");
 
 const router = express.Router();
-router.post("/auth/register", verificarToken, soloAdminActivo, register);
-
+// El registro público crea clientes; los usuarios administrativos se crean
+// desde /usuarios, cuya protección de administrador permanece intacta.
+router.post("/auth/register", register);
 router.post("/auth/login", login);
 
 module.exports = router;

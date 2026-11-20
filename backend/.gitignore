@@ -10,3 +10,7 @@ node_modules/
 
 # Logs
 npm-debug.log*
+
+# Imagenes cargadas en desarrollo (no persistir en Git)
+uploads/products/*
+!uploads/products/.gitkeep

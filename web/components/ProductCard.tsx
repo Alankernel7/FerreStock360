@@ -1,3 +1,7 @@
+import Link from "next/link";
+
+import { resolverUrlImagen } from "@/lib/imagenes";
+
 interface ProductCardProps {
   name: string;
   price: number;
@@ -7,6 +11,7 @@ interface ProductCardProps {
   badge?: string;
   description?: string;
   category?: string;
+  href?: string;
 }
 
 export default function ProductCard({
@@ -18,8 +23,11 @@ export default function ProductCard({
   badge,
   description,
   category,
+  href,
 }: ProductCardProps) {
-  return (
+  const urlImagen = resolverUrlImagen(image);
+
+  const tarjeta = (
     <div className="h-full flex flex-col bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all">
       <div className="relative bg-ferro-light flex items-center justify-center h-48 p-4">
         {badge && (
@@ -28,9 +36,9 @@ export default function ProductCard({
           </span>
         )}
 
-        {image ? (
+        {urlImagen ? (
           <img
-            src={image}
+            src={urlImagen}
             alt={name}
             className="max-w-full max-h-full w-auto h-auto object-contain"
           />
@@ -100,5 +108,18 @@ export default function ProductCard({
         )}
       </div>
     </div>
+  );
+
+  if (!href) {
+    return tarjeta;
+  }
+
+  return (
+    <Link
+      href={href}
+      className="block h-full rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ferro-yellow"
+    >
+      {tarjeta}
+    </Link>
   );
 }

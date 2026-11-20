@@ -30,10 +30,10 @@ const crearUsuario = async ({
 }) => {
   const pool = await getPool();
 
-  // El registro público siempre crea empleados.
+  // El registro público solo crea clientes y nunca acepta un id de rol del navegador.
   const rolResult = await pool
     .request()
-    .input("nombreRol", sql.NVarChar(50), "empleado")
+    .input("nombreRol", sql.NVarChar(50), "cliente")
     .query(`
       SELECT id_rol
       FROM roles
@@ -41,10 +41,10 @@ const crearUsuario = async ({
     `);
 
   if (rolResult.recordset.length === 0) {
-    throw new Error("El rol empleado no existe");
+    throw new Error("El rol cliente no existe. Ejecuta backend/database/rol_cliente.sql antes de habilitar el registro público.");
   }
 
-  const idRolEmpleado =
+  const idRolCliente =
     rolResult.recordset[0].id_rol;
 
   const result = await pool
@@ -52,7 +52,7 @@ const crearUsuario = async ({
     .input("nombre", sql.NVarChar(100), nombre)
     .input("email", sql.NVarChar(150), email)
     .input("password", sql.NVarChar(255), password)
-    .input("id_rol", sql.Int, idRolEmpleado)
+    .input("id_rol", sql.Int, idRolCliente)
     .query(`
       INSERT INTO usuarios (
         nombre,
@@ -78,7 +78,7 @@ const crearUsuario = async ({
 
   return {
     ...result.recordset[0],
-    rol: "empleado",
+    rol: "cliente",
   };
 };
 

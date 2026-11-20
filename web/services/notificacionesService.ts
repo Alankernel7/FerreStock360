@@ -15,14 +15,14 @@ async function solicitud<T>(ruta: string, init: RequestInit = {}): Promise<T> {
   return result.data as T;
 }
 
-export function consultarNotificaciones(): Promise<NotificacionesData> {
-  return solicitud("/notificaciones");
+export function consultarNotificaciones(cliente = false): Promise<NotificacionesData> {
+  return solicitud(cliente ? "/mis-notificaciones" : "/notificaciones");
 }
 
-export function marcarNotificacionLeida(id: number): Promise<void> {
-  return solicitud(`/notificaciones/${id}/leida`, { method: "PATCH" });
+export function marcarNotificacionLeida(id: number, cliente = false): Promise<void> {
+  return solicitud(`${cliente ? "/mis-notificaciones" : "/notificaciones"}/${id}/leida`, { method: "PATCH" });
 }
 
-export function marcarTodasNotificacionesLeidas(): Promise<void> {
-  return solicitud("/notificaciones/leidas", { method: "PATCH" });
+export function marcarTodasNotificacionesLeidas(cliente = false): Promise<void> {
+  return solicitud(`${cliente ? "/mis-notificaciones" : "/notificaciones"}/leidas`, { method: "PATCH" });
 }

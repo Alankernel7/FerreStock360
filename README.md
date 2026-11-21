@@ -9,7 +9,7 @@ App móvil independiente de FerreStock 360 (React Native + Expo + TypeScript).
 - Node.js 20 o superior
 - npm
 - App **Expo Go** en tu celular (Play Store / App Store)
-- Proyecto en **Firebase Console** (Authentication + Cloud Firestore)
+- Proyecto en **Firebase Console** (Authentication + Cloud Firestore).
 
 ## Configuración de Firebase
 

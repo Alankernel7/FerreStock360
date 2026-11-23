@@ -53,6 +53,7 @@ app.use(
       "GET",
       "POST",
       "PUT",
+      "PATCH",
       "DELETE",
       "OPTIONS",
     ],
@@ -88,23 +89,34 @@ if (configuracionImagenes) {
 }
 
 // Rutas de la API
-app.use("/api", healthRoutes);
-app.use("/api", dbTestRoutes);
-app.use("/api", productosRoutes);
-app.use("/api", categoriasRoutes);
-app.use("/api", dashboardRoutes);
-app.use("/api", authRoutes);
-app.use("/api", estadisticasPublicasRoutes);
-app.use("/api", inventarioRoutes);
-app.use("/api", usuariosRoutes);
-app.use("/api", movimientosRoutes);
-app.use("/api", notificacionesRoutes);
-app.use("/api", carritoRoutes);
-app.use("/api", pedidosRoutes);
+if (process.env.DATA_BACKEND === "firestore") {
+  app.use("/api", require("./routes/firebaseAdmin"));
+  app.use("/api", (_req, res) => res.status(404).json({ ok: false, message: "Ruta inexistente." }));
+  app.use((error, _req, res, _next) => {
+    const status = Number.isInteger(error.status) && error.status >= 400 && error.status < 600 ? error.status : 500;
+    if (status === 500) console.error("Firebase API:", error.code || error.name);
+    res.status(status).json({ ok: false, message: status === 500 ? "No se pudo completar la operación." : error.message });
+  });
+} else {
+  app.use("/api", healthRoutes);
+  app.use("/api", dbTestRoutes);
+  app.use("/api", productosRoutes);
+  app.use("/api", categoriasRoutes);
+  app.use("/api", dashboardRoutes);
+  app.use("/api", authRoutes);
+  app.use("/api", estadisticasPublicasRoutes);
+  app.use("/api", inventarioRoutes);
+  app.use("/api", usuariosRoutes);
+  app.use("/api", movimientosRoutes);
+  app.use("/api", notificacionesRoutes);
+  app.use("/api", carritoRoutes);
+  app.use("/api", pedidosRoutes);
 
-// Ejecuta limpieza de expiraciones incluso si el cliente cerró el navegador.
-// El servicio comprueba si la tabla de reservas ya fue instalada.
-iniciarLimpiezaPeriodica();
+  // Ejecuta limpieza de expiraciones incluso si el cliente cerró el navegador.
+  // El servicio comprueba si la tabla de reservas ya fue instalada.
+  iniciarLimpiezaPeriodica();
+}
+
 
 // Iniciar servidor
 app.listen(PORT, () => {

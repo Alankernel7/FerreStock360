@@ -49,6 +49,7 @@ type Formulario = {
   stock_actual: string;
   stock_minimo: string;
   imagen_url: string;
+  imagen_2: string;
   estado: boolean;
   id_categoria: number | null;
 };
@@ -63,6 +64,7 @@ const FORMULARIO_VACIO: Formulario = {
   stock_actual: "",
   stock_minimo: "",
   imagen_url: "",
+  imagen_2: "",
   estado: true,
   id_categoria: null,
 };
@@ -139,6 +141,7 @@ export default function AdminProductosScreen() {
       precio: String(producto.precio),
       stock_actual: String(producto.stock_actual),
       stock_minimo: String(producto.stock_minimo),
+      imagen_2: producto.imagen_2 ?? "",
       imagen_url: producto.imagen_url ?? "",
       estado: producto.estado,
       id_categoria: producto.id_categoria || null,
@@ -237,6 +240,7 @@ export default function AdminProductosScreen() {
             : formulario.descripcion.trim(),
         codigo: formulario.codigo.trim(),
         precio: Number(formulario.precio.replace(",", ".")),
+        imagen_2: formulario.imagen_2.trim() || null,
         imagen_url: imagenUrl === "" ? null : imagenUrl,
         stock_actual: aEntero(formulario.stock_actual),
         stock_minimo:
@@ -513,6 +517,7 @@ export default function AdminProductosScreen() {
                     La imagen se subirá al guardar el producto.
                   </Text>
                 )}
+                <TextField etiqueta="Segunda imagen (URL)" valor={formulario.imagen_2} onChangeText={v=>cambiar("imagen_2",v)} placeholder="https://" keyboardType="url" autoCapitalize="none"/>
                 <TextField
                   etiqueta="O ingresar imagen (URL)"
                   valor={formulario.imagen_url}

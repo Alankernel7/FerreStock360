@@ -11,7 +11,8 @@ const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
 
 export async function obtenerProductos(): Promise<Producto[]> {
-  const response = await fetch(`${API_URL}/productos`);
+  const token = obtenerToken();
+  const response = await fetch(`${API_URL}/productos`,{headers:token?{Authorization:"Bearer "+token}:undefined});
 
   if (!response.ok) {
     throw new Error("No se pudieron obtener los productos");

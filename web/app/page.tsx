@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import FavoritoProducto from "@/components/FavoritoProducto";
 import ProductCard from "@/components/ProductCard";
 
 import { obtenerProductosPublicos } from "@/services/productosService";
@@ -37,6 +38,7 @@ function AgregarCatalogo({ producto }: { producto: Producto }) {
       className="bg-ferro-yellow text-ferro-black text-sm font-semibold px-4 py-2 rounded-lg hover:bg-ferro-yellow-dark disabled:opacity-50">
       {cargando ? "Agregando…" : "Agregar al carrito"}
     </button>
+    {process.env.NEXT_PUBLIC_FIREBASE_AUTH_ENABLED === "true" && <FavoritoProducto codigo={producto.codigo} />}
     {mensaje && <span role="status" className="text-xs text-gray-600">{mensaje}</span>}
   </div>;
 }

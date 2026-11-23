@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { accesoFirebase, firebaseDisponible, recuperarAcceso } from "@/services/firebaseClient";
 import { iniciarSesion } from "@/services/authService";
 
 import type { EstadisticasPublicas } from "@/types/estadisticasPublicas";
@@ -44,19 +45,20 @@ export default function LoginPage() {
     cargarEstadisticas();
   }, []);
 
-  const handleSubmit = async (
-    event: FormEvent<HTMLFormElement>
-  ) => {
-    event.preventDefault();
+  const [aviso, setAviso] = useState("");
+  const integrado = firebaseDisponible && process.env.NEXT_PUBLIC_FIREBASE_AUTH_ENABLED === "true";
+  const handleSubmit = async (event?: FormEvent<HTMLFormElement>, google = false) => {
+    event?.preventDefault();
+    setAviso("");
 
     setError(null);
 
-    if (!email.trim()) {
+    if (!google && !email.trim()) {
       setError("Ingresa tu correo electrónico.");
       return;
     }
 
-    if (!password) {
+    if (!google && !password) {
       setError("Ingresa tu contraseña.");
       return;
     }
@@ -64,10 +66,9 @@ export default function LoginPage() {
     try {
       setCargando(true);
 
-      const data = await iniciarSesion(
-        email.trim(),
-        password
-      );
+      const data = integrado
+        ? await accesoFirebase(email.trim(), password, recordarme, google)
+        : await iniciarSesion(email.trim(), password);
 
       const almacenamiento = recordarme
         ? localStorage
@@ -228,6 +229,18 @@ export default function LoginPage() {
                 : "Iniciar sesión"}
             </button>
           </form>
+          {integrado && <div className="mt-4 grid gap-3">
+            <button type="button" disabled={cargando} onClick={() => void handleSubmit(undefined,true)} className="rounded-lg border p-3">Continuar con Google</button>
+            <button type="button" disabled={cargando} onClick={async () => {
+              setError(null); setAviso("");
+              if (!email.trim()) { setError("Escribe tu correo para recuperar la contraseña."); return; }
+              try {
+                await recuperarAcceso(email.trim());
+                setAviso("Si el correo corresponde a una cuenta, recibirás instrucciones de recuperación.");
+              } catch { setError("No se pudo solicitar la recuperación."); }
+            }}>Recuperar contraseña</button>
+            {aviso && <p role="status">{aviso}</p>}
+          </div>}
 
           <p className="text-center mt-6 text-sm text-gray-500">
             ¿No tienes una cuenta?{" "}

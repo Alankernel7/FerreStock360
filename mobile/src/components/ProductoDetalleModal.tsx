@@ -1,4 +1,7 @@
+import { useRef, useState } from "react";
+import { apiConfigurada, agregarProducto } from "../services/operaciones";
 import {
+  Alert,
   Image,
   Modal,
   Pressable,
@@ -87,6 +90,8 @@ export default function ProductoDetalleModal({
   onAlternarFavorito,
   onCerrar,
 }: Props) {
+  const bloqueo = useRef(false);
+  const [agregando, setAgregando] = useState(false);
   const descripcion = producto?.descripcion?.trim() ?? "";
   const codigo = producto?.codigo?.trim() ?? "";
   const categoria = categoriaNombre.trim();
@@ -192,6 +197,7 @@ export default function ProductoDetalleModal({
                   )}
                 </View>
 
+                {producto.imagen_2 && <Image source={{uri:producto.imagen_2}} style={{height:140,width:"100%"}} resizeMode="contain" accessibilityLabel="Segunda imagen del producto"/>}
                 <Text style={styles.nombre}>{producto.nombre}</Text>
                 <Text style={styles.precio}>${producto.precio.toFixed(2)}</Text>
 
@@ -236,6 +242,13 @@ export default function ProductoDetalleModal({
               </ScrollView>
 
               <View style={styles.acciones}>
+                {apiConfigurada && producto.estado && <PrimaryButton titulo="Agregar al carrito" cargando={agregando} onPress={async()=>{
+                  if (bloqueo.current) return;
+                  bloqueo.current=true; setAgregando(true);
+                  try { await agregarProducto(producto.codigo); Alert.alert("Carrito","Producto reservado."); }
+                  catch (e) { Alert.alert("Carrito", e instanceof Error ? e.message : "No se pudo reservar."); }
+                  finally { bloqueo.current=false; setAgregando(false); }
+                }}/>}
                 {!!onAlternarFavorito && (
                   <PrimaryButton
                     titulo={

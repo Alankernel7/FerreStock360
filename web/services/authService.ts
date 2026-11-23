@@ -1,3 +1,4 @@
+import { firebaseDisponible, registroFirebase, salirFirebase } from "./firebaseClient";
 import type { LoginResponse, UsuarioAutenticado } from "@/types/auth";
 
 const API_URL =
@@ -67,6 +68,10 @@ export async function registrarUsuario(
   email: string,
   password: string
 ): Promise<void> {
+  if (firebaseDisponible && process.env.NEXT_PUBLIC_FIREBASE_AUTH_ENABLED === "true") {
+    await registroFirebase(nombre,email,password);
+    return;
+  }
   const response = await fetch(`${API_URL}/auth/register`, {
     method: "POST",
     headers: {
@@ -93,6 +98,7 @@ export function cerrarSesion(): void {
     return;
   }
 
+  if (firebaseDisponible && process.env.NEXT_PUBLIC_FIREBASE_AUTH_ENABLED === "true") void salirFirebase().catch(console.error);
   localStorage.removeItem("auth_token");
   localStorage.removeItem("usuario");
 

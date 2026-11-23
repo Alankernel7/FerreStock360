@@ -1,3 +1,4 @@
+import { apiConfigurada, catalogoCompartido, administrarCatalogo } from "./operaciones";
 import {
   addDoc,
   collection,
@@ -98,6 +99,7 @@ function mapearProducto(snapshot: QueryDocumentSnapshot<DocumentData>): Producto
   const data = snapshot.data();
   return {
     id_producto: snapshot.id,
+    imagen_2: typeof data.imagen_2 === "string" ? data.imagen_2 : null,
     nombre: aTexto(data.nombre, "Sin nombre"),
     descripcion: typeof data.descripcion === "string" ? data.descripcion : null,
     codigo: aTexto(data.codigo),
@@ -252,6 +254,10 @@ export async function obtenerProductos(
   }
   try {
     const db = obtenerDb();
+    if(apiConfigurada){
+      const lista=await catalogoCompartido(incluirInactivos);
+      return {productos:lista.map(p=>({...p,id_producto:p.firestore_id,imagen_url:p.imagen_1,stock_actual:incluirInactivos?p.stock_actual:p.stock_disponible})),error:null};
+    }
     const base = collection(db, COLECCIONES.productos);
     const consulta = incluirInactivos
       ? query(base)
@@ -295,6 +301,7 @@ export async function obtenerCategorias(): Promise<ResultadoCategorias> {
 
 /** Campos editables de un producto (los que escribe el administrador). */
 export type DatosProducto = {
+  imagen_2?: string | null;
   nombre: string;
   descripcion: string | null;
   codigo: string;
@@ -308,6 +315,7 @@ export type DatosProducto = {
 
 /** Crea un producto en Firestore (solo administradores por reglas). */
 export async function crearProducto(datos: DatosProducto): Promise<void> {
+  if (apiConfigurada) { await administrarCatalogo("/productos","POST",{...datos,imagen_1:datos.imagen_url}); return; }
   const db = obtenerDb();
 
   const { id_categoria, ...resto } = datos;
@@ -325,6 +333,7 @@ export async function actualizarProducto(
   id: ProductoId,
   datos: DatosProducto
 ): Promise<void> {
+  if (apiConfigurada) { const p=(await catalogoCompartido(true)).find(p=>p.firestore_id===String(id)); if(!p) throw new Error("Producto inexistente."); await administrarCatalogo("/productos/"+p.id_producto,"PUT",{...datos,imagen_1:datos.imagen_url,imagen_2:datos.imagen_2===undefined?p.imagen_2:datos.imagen_2}); return; }
   const db = obtenerDb();
 
   const { id_categoria, ...resto } = datos;
@@ -338,6 +347,7 @@ export async function actualizarProducto(
 
 /** Elimina un producto de Firestore. */
 export async function eliminarProducto(id: ProductoId): Promise<void> {
+  if (apiConfigurada) { const p=(await catalogoCompartido(true)).find(p=>p.firestore_id===String(id)); if(!p) throw new Error("Producto inexistente."); await administrarCatalogo("/productos/"+p.id_producto,"DELETE"); return; }
   const db = obtenerDb();
   await deleteDoc(doc(db, COLECCIONES.productos, String(id)));
 }
@@ -353,6 +363,7 @@ export type DatosCategoria = {
  * El id del documento es `String(id_categoria)`, igual que los datos existentes.
  */
 export async function crearCategoria(datos: DatosCategoria): Promise<void> {
+  if (apiConfigurada) { await administrarCatalogo("/categorias","POST",datos); return; }
   const db = obtenerDb();
   const snapshot = await getDocs(collection(db, COLECCIONES.categorias));
   const ids = snapshot.docs
@@ -373,6 +384,7 @@ export async function actualizarCategoria(
   id: number,
   datos: DatosCategoria
 ): Promise<void> {
+  if (apiConfigurada) { await administrarCatalogo("/categorias/"+id,"PUT",datos); return; }
   const db = obtenerDb();
   await updateDoc(doc(db, COLECCIONES.categorias, String(id)), {
     id_categoria: id,
@@ -384,6 +396,7 @@ export async function actualizarCategoria(
 
 /** Elimina una categoría de Firestore. */
 export async function eliminarCategoria(id: number): Promise<void> {
+  if (apiConfigurada) { await administrarCatalogo("/categorias/"+id,"DELETE"); return; }
   const db = obtenerDb();
   await deleteDoc(doc(db, COLECCIONES.categorias, String(id)));
 }

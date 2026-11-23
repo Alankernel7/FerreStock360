@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import Header from "@/components/Header";
+import PerfilFirebase from "@/components/PerfilFirebase";
 import Footer from "@/components/Footer";
 
 import type { UsuarioAutenticado } from "@/types/auth";
@@ -102,6 +103,13 @@ export default function PerfilPage() {
                     </dd>
                   </div>
                 </dl>
+                {usuario.uid && <PerfilFirebase uid={usuario.uid} nombreInicial={usuario.nombre} onNombre={nombre=>{
+                  const actualizado={...usuario,nombre};
+                  setUsuario(actualizado);
+                  const almacen=localStorage.getItem("auth_token")?localStorage:sessionStorage;
+                  almacen.setItem("usuario",JSON.stringify(actualizado));
+                  window.dispatchEvent(new Event("auth:changed"));
+                }}/>}
 
                 <div className="flex flex-wrap gap-3 mt-8 pt-6 border-t border-gray-100">
                   <Link href="/mis-compras" className="bg-white border border-gray-200 text-ferro-black font-semibold px-5 py-2 rounded-lg hover:bg-gray-50 transition-colors">

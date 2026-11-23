@@ -6,6 +6,7 @@ import AppHeader from "../../src/components/AppHeader";
 import Banner from "../../src/components/Banner";
 import EstadoVacio from "../../src/components/EstadoVacio";
 import PrimaryButton from "../../src/components/PrimaryButton";
+import { apiConfigurada } from "../../src/services/operaciones";
 import { colors } from "../../src/constants/colors";
 import { espaciado, radio, tipografia } from "../../src/constants/theme";
 import { useAuth } from "../../src/contexts/AuthContext";
@@ -128,9 +129,26 @@ export default function AdminDashboardScreen() {
           </View>
         )}
 
+        {!cargando && !error && (
+          <View>
+            <Text style={styles.seccionTitulo}>Disponibilidad de productos activos</Text>
+            {activos === 0 ? <Text>Sin productos activos.</Text> : [
+              { nombre: "En el mínimo o por debajo", cantidad: productos.filter(p => p.estado && p.stock_actual <= p.stock_minimo).length, color: colors.yellowDark },
+              { nombre: "Sobre el mínimo", cantidad: productos.filter(p => p.estado && p.stock_actual > p.stock_minimo).length, color: colors.badgeVerdeTexto },
+            ].map(({ nombre, cantidad, color }) => (
+              <View key={nombre} style={{ marginBottom: 10 }}>
+                <Text>{nombre} · {cantidad}</Text>
+                <View style={{ height: 10, backgroundColor: "#e5e7eb", borderRadius: 5, overflow: "hidden" }}>
+                  <View style={{ height: 10, width: `${100 * cantidad / activos}%`, backgroundColor: color }} />
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
         <Text style={styles.seccionTitulo}>Gestión</Text>
 
         <View style={styles.menu}>
+          {apiConfigurada && <FilaMenu icono="receipt-outline" texto="Inventario y pedidos" onPress={()=>router.push("/admin/operaciones")}/>}
           <FilaMenu
             icono="cube-outline"
             texto="Gestión de productos"
@@ -144,7 +162,7 @@ export default function AdminDashboardScreen() {
           <FilaMenu
             icono="people-outline"
             texto="Gestión de usuarios"
-            onPress={() => router.push("/admin/usuarios")}
+            onPress={() => router.push(apiConfigurada?"/admin/cuentas":"/admin/usuarios")}
           />
         </View>
 

@@ -22,6 +22,7 @@ export interface PerfilUsuario {
 export type ProductoId = string | number;
 
 export interface Producto {
+  imagen_2?: string | null;
   id_producto: ProductoId;
   nombre: string;
   descripcion: string | null;

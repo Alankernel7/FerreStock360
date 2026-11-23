@@ -11,6 +11,7 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AppHeader from "../../src/components/AppHeader";
 import Banner from "../../src/components/Banner";
+import { apiConfigurada } from "../../src/services/operaciones";
 import PrimaryButton from "../../src/components/PrimaryButton";
 import TextField from "../../src/components/TextField";
 import { colors } from "../../src/constants/colors";
@@ -223,6 +224,7 @@ export default function PerfilScreen() {
           </View>
         )}
 
+        {apiConfigurada && <PrimaryButton titulo="Carrito y mis compras" onPress={()=>router.push("/compras")} />}
         <View style={styles.tarjeta}>
           <Pressable
             style={styles.filaAccion}

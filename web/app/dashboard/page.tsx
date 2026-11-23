@@ -106,6 +106,20 @@ export default function DashboardPage() {
         ))}
       </div>
 
+      <section aria-labelledby="grafica-stock" className="mb-6 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+        <h2 id="grafica-stock" className="mb-4 text-lg font-semibold">Disponibilidad de productos activos</h2>
+        {dashboard.resumen.total_productos === 0 ? <p>Sin productos activos.</p> : [
+          { nombre: "En el mínimo o por debajo", cantidad: dashboard.resumen.productos_stock_bajo, color: "bg-amber-500" },
+          { nombre: "Sobre el mínimo", cantidad: dashboard.resumen.total_productos - dashboard.resumen.productos_stock_bajo, color: "bg-green-700" },
+        ].map(({ nombre, cantidad, color }) => (
+          <div key={nombre} className="mb-3">
+            <div className="flex justify-between text-sm"><span>{nombre}</span><strong>{cantidad}</strong></div>
+            <div aria-hidden="true" className="mt-1 h-3 overflow-hidden rounded bg-gray-100">
+              <div className={color + " h-full"} style={{ width: (100 * cantidad / dashboard.resumen.total_productos) + "%" }} />
+            </div>
+          </div>
+        ))}
+      </section>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
           <div className="mb-4 flex items-center justify-between gap-3"><h2 className="text-lg font-semibold">Alertas de inventario</h2><Link href="/dashboard/inventario" className="text-sm font-semibold text-amber-800 hover:underline">Ver inventario</Link></div>

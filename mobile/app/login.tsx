@@ -1,0 +1,349 @@
+import { useState } from "react";
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
+import { router, useLocalSearchParams } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import Banner from "../src/components/Banner";
+import Brand from "../src/components/Brand";
+import PrimaryButton from "../src/components/PrimaryButton";
+import TextField from "../src/components/TextField";
+import { colors } from "../src/constants/colors";
+import { espaciado, radio, tipografia } from "../src/constants/theme";
+import { useAuth } from "../src/contexts/AuthContext";
+import { mensajeErrorFirebase } from "../src/utils/firebaseErrors";
+
+type Errores = { email?: string; password?: string };
+
+export default function LoginScreen() {
+  const { registro } = useLocalSearchParams<{ registro?: string }>();
+const {
+  iniciarSesion,
+  iniciarSesionGoogle,
+  recuperarPassword,
+  firebaseListo,
+} = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [recordarme, setRecordarme] = useState(false);
+  const [errores, setErrores] = useState<Errores>({});
+  const [cargando, setCargando] = useState(false);
+  const [mensajeError, setMensajeError] = useState<string | null>(null);
+  const [mensajeExito, setMensajeExito] = useState(registro === "1");
+
+  const iniciarSesionEmail = async () => {
+    const nuevos: Errores = {};
+    if (!email.trim()) nuevos.email = "Ingresa tu correo electrónico.";
+    if (!password) nuevos.password = "Ingresa tu contraseña.";
+    setErrores(nuevos);
+    if (Object.keys(nuevos).length > 0) return;
+
+    setMensajeError(null);
+    setMensajeExito(false);
+    setCargando(true);
+    try {
+      await iniciarSesion(email, password);
+      // La redirección la gestiona el AuthContext (sesión activa → Inicio).
+    } catch (error) {
+      setMensajeError(mensajeErrorFirebase(error));
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  const iniciarConGoogle = async () => {
+  setMensajeError(null);
+  setCargando(true);
+
+  try {
+    await iniciarSesionGoogle();
+  } catch (error) {
+    setMensajeError(mensajeErrorFirebase(error));
+  } finally {
+    setCargando(false);
+  }
+};
+
+  const recuperar = async () => {
+    if (!email.trim()) {
+      setErrores({ email: "Ingresa tu correo electrónico para recuperarla." });
+      return;
+    }
+    try {
+      await recuperarPassword(email);
+      Alert.alert(
+        "Correo enviado",
+        "Te enviamos un enlace para restablecer tu contraseña. Revisa tu bandeja de entrada."
+      );
+    } catch (error) {
+      Alert.alert("Recuperar contraseña", mensajeErrorFirebase(error));
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.seguro} edges={["top"]}>
+      <StatusBar style="dark" />
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.contenido}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Pressable
+            onPress={() => router.replace("/")}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              alignSelf: "flex-start",
+              gap: 8,
+              marginBottom: 16,
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Volver al inicio"
+          >
+            <Ionicons
+              name="arrow-back"
+              size={22}
+              color={colors.black}
+            />
+            <Text style={{ color: colors.black, fontWeight: "600" }}>
+              Volver al inicio
+            </Text>
+          </Pressable>
+
+          <View style={styles.marca}>
+            <Brand variante="sobreClaro" tamano={24} />
+          </View>
+
+          <View style={styles.formulario}>
+            <View style={styles.encabezado}>
+              <Text style={styles.titulo}>Bienvenido</Text>
+              <Text style={styles.subtitulo}>Inicia sesión en tu cuenta</Text>
+            </View>
+
+            {!firebaseListo && (
+              <Banner
+                tipo="error"
+                texto="Firebase no está configurado. Completa el archivo .env para iniciar sesión (ver .env.example)."
+              />
+            )}
+
+            {!!mensajeExito && (
+              <Banner
+                tipo="exito"
+                texto="¡Cuenta creada exitosamente! Ya puedes ingresar con tus credenciales."
+                onCerrar={() => setMensajeExito(false)}
+              />
+            )}
+
+            {!!mensajeError && (
+              <Banner
+                tipo="error"
+                texto={mensajeError}
+                onCerrar={() => setMensajeError(null)}
+              />
+            )}
+
+            <TextField
+              etiqueta="Correo electrónico"
+              valor={email}
+              onChangeText={(t) => {
+                setEmail(t);
+                if (errores.email)
+                  setErrores({ ...errores, email: undefined });
+              }}
+              placeholder="usuario@correo.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              error={errores.email}
+            />
+
+            <TextField
+              etiqueta="Contraseña"
+              valor={password}
+              onChangeText={(t) => {
+                setPassword(t);
+                if (errores.password)
+                  setErrores({ ...errores, password: undefined });
+              }}
+              placeholder="••••••••"
+              seguridad
+              error={errores.password}
+            />
+
+            <View style={styles.opciones}>
+              <Pressable
+                style={styles.recordarme}
+                onPress={() => setRecordarme((v) => !v)}
+                hitSlop={6}
+              >
+                <View
+                  style={[styles.checkbox, recordarme && styles.checkboxOn]}
+                >
+                  {recordarme && (
+                    <Ionicons
+                      name="checkmark"
+                      size={13}
+                      color={colors.black}
+                    />
+                  )}
+                </View>
+                <Text style={styles.recordarmeTexto}>Recordarme</Text>
+              </Pressable>
+
+              <Pressable hitSlop={6} onPress={recuperar}>
+                <Text style={styles.olvide}>¿Olvidaste tu contraseña?</Text>
+              </Pressable>
+            </View>
+
+            <PrimaryButton
+              titulo={cargando ? "Iniciando sesión..." : "Iniciar sesión"}
+              onPress={iniciarSesionEmail}
+              cargando={cargando}
+            />
+            <Pressable
+  onPress={iniciarConGoogle}
+  disabled={cargando || !firebaseListo}
+  style={[
+    styles.googleBoton,
+    (cargando || !firebaseListo) && { opacity: 0.5 },
+  ]}
+>
+  <Ionicons
+    name="logo-google"
+    size={22}
+    color={colors.black}
+  />
+
+  <Text style={styles.googleBotonTexto}>
+    Continuar con Google
+  </Text>
+</Pressable>
+
+            <Pressable
+              style={styles.footerLink}
+              onPress={() => router.push("/register")}
+            >
+              <Text style={styles.footerTexto}>
+                ¿No tienes una cuenta?{" "}
+                <Text style={styles.footerNegrita}>Regístrate</Text>
+              </Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  seguro: {
+    flex: 1,
+    backgroundColor: colors.white,
+  },
+  flex: {
+    flex: 1,
+  },
+  contenido: {
+    flexGrow: 1,
+    justifyContent: "center",
+    padding: espaciado.xxl,
+    paddingVertical: espaciado.xl,
+  },
+  marca: {
+    alignItems: "center",
+    marginBottom: espaciado.xl,
+  },
+  formulario: {
+    width: "100%",
+    maxWidth: 420,
+    alignSelf: "center",
+    gap: espaciado.lg,
+  },
+  encabezado: {
+    gap: espaciado.xs,
+  },
+  titulo: {
+    fontSize: tipografia.xl + 4,
+    fontWeight: "700",
+    color: colors.black,
+  },
+  subtitulo: {
+    fontSize: tipografia.sm + 1,
+    color: colors.textoSecundario,
+  },
+  opciones: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: espaciado.md,
+  },
+  recordarme: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: espaciado.sm,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderWidth: 1,
+    borderColor: colors.borde,
+    borderRadius: radio.sm - 4,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.white,
+  },
+  checkboxOn: {
+    backgroundColor: colors.yellow,
+    borderColor: colors.yellow,
+  },
+  recordarmeTexto: {
+    fontSize: tipografia.sm + 1,
+    color: colors.texto,
+  },
+  olvide: {
+    fontSize: tipografia.sm,
+    color: colors.yellowDark,
+    fontWeight: "600",
+  },
+  footerLink: {
+    alignItems: "center",
+    paddingVertical: espaciado.sm,
+  },
+  footerTexto: {
+    fontSize: tipografia.sm + 1,
+    color: colors.textoSecundario,
+  },
+  footerNegrita: {
+    color: colors.yellowDark,
+    fontWeight: "700",
+  },
+  googleBoton: {
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: espaciado.sm,
+  paddingVertical: espaciado.md,
+  borderWidth: 1,
+  borderRadius: radio.md,
+  borderColor: colors.borde,
+  backgroundColor: colors.white,
+},
+
+googleBotonTexto: {
+  color: colors.black,
+  fontWeight: "600",
+  fontSize: tipografia.sm + 1,
+},
+});

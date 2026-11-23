@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "FerreStock 360",
+    "slug": "ferrestock360-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "ferrestock",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ferrestock360.mobile"
+    },
+    "android": {
+      "edgeToEdgeEnabled": true,
+      "package": "com.ferrestock360.mobile",
+      "googleServicesFile": "./google-services.json"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Permite seleccionar imágenes de productos desde tu fototeca.",
+          "microphonePermission": false
+        }
+      ],
+      "@react-native-google-signin/google-signin"
+    ],
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "d147c18d-e845-4a52-851b-219aee2b460a"
+      }
+    }
+  }
+}

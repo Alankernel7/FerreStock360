@@ -1,0 +1,158 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import StatCard from "@/components/StatCard";
+import { obtenerDashboard } from "@/services/dashboardService";
+import type { DashboardData } from "@/types/dashboard";
+
+
+
+export default function DashboardPage() {
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const cargarDashboard = async () => {
+      try {
+        setCargando(true);
+
+        const datos = await obtenerDashboard();
+
+        setDashboard(datos);
+        setError(null);
+      } catch (err) {
+        console.error("Error al cargar dashboard:", err);
+
+        setError("No se pudieron cargar los datos del dashboard.");
+      } finally {
+        setCargando(false);
+      }
+    };
+
+    cargarDashboard();
+  }, []);
+
+  if (cargando) {
+    return (
+      <div>
+        <h1 className="text-2xl font-bold text-ferro-black mb-6">
+          Dashboard
+        </h1>
+
+        <p className="text-gray-500">
+          Cargando información...
+        </p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div>
+        <h1 className="text-2xl font-bold text-ferro-black mb-6">
+          Dashboard
+        </h1>
+
+        <p className="text-red-500">
+          {error}
+        </p>
+      </div>
+    );
+  }
+
+  if (!dashboard) {
+    return null;
+  }
+
+  const stats = [
+    {
+      title: "Productos",
+      value: dashboard.resumen.total_productos,
+      change: "",
+      changeType: "neutral" as const,
+      icon: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4",
+    },
+    {
+      title: "Categorías",
+      value: dashboard.resumen.total_categorias,
+      change: "",
+      changeType: "neutral" as const,
+      icon: "M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z",
+    },
+    {
+      title: "Stock bajo",
+      value: dashboard.resumen.productos_stock_bajo,
+      change: "",
+      changeType: "negative" as const,
+      icon: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z",
+    },
+  ];
+
+  return (
+    <div>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div><h1 className="text-2xl font-bold text-ferro-black">Dashboard</h1><p className="mt-1 text-gray-500">Resumen ejecutivo del sistema</p></div>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/dashboard/productos" className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold hover:bg-gray-50">Productos</Link>
+          <Link href="/dashboard/inventario" className="rounded-lg bg-ferro-yellow px-3 py-2 text-sm font-semibold text-ferro-black hover:brightness-95">Inventario</Link>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {stats.map((stat, index) => (
+          <StatCard key={index} {...stat} />
+        ))}
+      </div>
+
+      <section aria-labelledby="grafica-stock" className="mb-6 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+        <h2 id="grafica-stock" className="mb-4 text-lg font-semibold">Disponibilidad de productos activos</h2>
+        {dashboard.resumen.total_productos === 0 ? <p>Sin productos activos.</p> : [
+          { nombre: "En el mínimo o por debajo", cantidad: dashboard.resumen.productos_stock_bajo, color: "bg-amber-500" },
+          { nombre: "Sobre el mínimo", cantidad: dashboard.resumen.total_productos - dashboard.resumen.productos_stock_bajo, color: "bg-green-700" },
+        ].map(({ nombre, cantidad, color }) => (
+          <div key={nombre} className="mb-3">
+            <div className="flex justify-between text-sm"><span>{nombre}</span><strong>{cantidad}</strong></div>
+            <div aria-hidden="true" className="mt-1 h-3 overflow-hidden rounded bg-gray-100">
+              <div className={color + " h-full"} style={{ width: (100 * cantidad / dashboard.resumen.total_productos) + "%" }} />
+            </div>
+          </div>
+        ))}
+      </section>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
+          <div className="mb-4 flex items-center justify-between gap-3"><h2 className="text-lg font-semibold">Alertas de inventario</h2><Link href="/dashboard/inventario" className="text-sm font-semibold text-amber-800 hover:underline">Ver inventario</Link></div>
+          <div className="space-y-4">
+            {dashboard.stock_bajo.length === 0 ? (
+              <p className="text-gray-500 text-sm">
+                No hay productos con stock bajo ni agotados.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {dashboard.stock_bajo.map((producto) => (
+                  <div
+                    key={producto.id_producto}
+                    className="flex items-start justify-between gap-3 py-2 border-b border-gray-50 last:border-0"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm truncate">
+                        {producto.nombre}
+                      </p>
+
+                      <p className="text-xs text-gray-500">{producto.codigo} · Mínimo: {producto.stock_minimo}</p>
+                    </div>
+
+                    <span className={`px-3 py-1 rounded text-sm font-medium flex-shrink-0 ${producto.estado_inventario === "agotado" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-800"}`}>
+                      {producto.estado_inventario === "agotado" ? "Agotado" : `${producto.stock_actual} disponibles`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,36 +1,35 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FerreStock360
 
-## Getting Started
+Web y app de una ferretería académica. El cliente consulta productos, guarda favoritos, reserva existencias y elige una fecha de retiro. El equipo de la tienda administra catálogo, movimientos, pedidos y cuentas.
 
-First, run the development server:
+| Directorio | Aplicación |
+| --- | --- |
+| `web/` | Next.js y React. Tienda y administración desde el navegador. |
+| `mobile/` | Expo y React Native. Catálogo, favoritos, perfil, compras y administración. |
+| `backend/` | API REST en Express. Verifica la identidad Firebase y ejecuta las operaciones de inventario en Firestore. |
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Ejecutar en desarrollo
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Usar Node.js 22 o superior compatible con las versiones fijadas y ejecutar `npm ci` en cada directorio. Iniciar cada proceso desde su carpeta.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Directorio | Comando | Configuración local |
+| --- | --- | --- |
+| `backend/` | `npm start` | `.env` con `DATA_BACKEND=firestore`, `FIREBASE_PROJECT_ID`, credencial de aplicación y `FRONTEND_URLS`. El puerto predeterminado es 3001. |
+| `web/` | `npm run dev` | `.env.local` con `NEXT_PUBLIC_API_URL=http://localhost:3001/api`, `NEXT_PUBLIC_FIREBASE_AUTH_ENABLED=true` y los valores públicos `NEXT_PUBLIC_FIREBASE_API_KEY`, `AUTH_DOMAIN`, `PROJECT_ID` y `APP_ID` (todos con el prefijo `NEXT_PUBLIC_FIREBASE_`). |
+| `mobile/` | `npm start` | Completar `.env` a partir de `.env.example`. En un teléfono usar `EXPO_PUBLIC_API_URL=http://IP-DEL-EQUIPO:3001/api` en la misma red. En desarrollo también se detecta el host LAN de Expo. Google Sign-In requiere una compilación nativa de desarrollo y la configuración OAuth de esa plataforma. |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Ambos clientes deben usar el mismo proyecto de Firebase y la misma API. Para subir imágenes, configurar `CLOUDINARY_CLOUD_NAME` y `CLOUDINARY_UPLOAD_PRESET` en la API y sus equivalentes `EXPO_PUBLIC_` en Expo. El servidor local usa `GOOGLE_APPLICATION_CREDENTIALS` apuntando a un JSON ubicado fuera del repositorio. En despliegue, configurar una identidad de servidor o un secreto protegido. La ruta de un archivo en el equipo de desarrollo solo sirve en ese equipo.
 
-## Learn More
+## Datos y prueba de compra
 
-To learn more about Next.js, take a look at the following resources:
+`products`, `categories`, `users`, `favorites` y `activity_history` corresponden al catálogo y las cuentas compartidas. La API administra carritos, reservas, pedidos, movimientos y notificaciones. Una reserva reduce las existencias disponibles. La entrega descuenta el stock físico. La cancelación libera las unidades. El pago con tarjeta es simulado.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Desde `backend/`, `node scripts/datosAcademicos.js` crea dos productos de demostración, un pedido entregado y otro pendiente. El script conserva las existencias y el estado de los pedidos al volver a ejecutarlo. Requiere una categoría existente. Los módulos SQL siguen disponibles para instalaciones anteriores.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Para verificar ambas plataformas, entrar con una cuenta de cliente, reservar una unidad, confirmar el retiro y buscar el pedido con una cuenta administrativa desde la otra plataforma. Comprobar la disponibilidad antes y después de la reserva, la actualización del historial y el cambio de estado.
 
-## Deploy on Vercel
+## Comprobaciones
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Web: `npm run build` y `npm run lint`.
+- App: `npm run typecheck` y una prueba en dispositivo con una development build.
+- Backend: `node --test tests/*.test.js`. Las pruebas que escriben en SQL necesitan la base de pruebas desechable indicada en `tests/testDatabaseConfig.js`.

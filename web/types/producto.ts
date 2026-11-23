@@ -1,0 +1,51 @@
+export interface Producto {
+  id_producto: number;
+  nombre: string;
+  descripcion: string | null;
+  codigo: string;
+  precio: number;
+  imagen_1: string | null;
+  imagen_2: string | null;
+  stock_actual: number;
+  stock_disponible?: number;
+  stock_minimo: number;
+  id_categoria: number;
+  estado: boolean;
+  fecha_creacion: string;
+}
+
+export interface CrearProductoData {
+  nombre: string;
+  descripcion: string;
+  codigo: string;
+  precio: number;
+  imagen_1: string | null;
+  imagen_2: string | null;
+  imagen_1_archivo?: File | null;
+  imagen_2_archivo?: File | null;
+  stock_actual: number;
+  stock_minimo: number;
+  id_categoria: number;
+  estado: boolean;
+}
+
+export interface ActualizarProductoData {
+  nombre: string;
+  descripcion: string;
+  codigo: string;
+  precio: number;
+  imagen_1: string | null;
+  imagen_2: string | null;
+  imagen_1_archivo?: File | null;
+  imagen_2_archivo?: File | null;
+  stock_actual: number;
+  stock_minimo: number;
+  id_categoria: number;
+  estado: boolean;
+}
+
+export interface ProductoResponse {
+  ok: boolean;
+  message: string;
+  data: Producto;
+}

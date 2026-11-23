@@ -1,0 +1,16 @@
+# Dependencias
+node_modules/
+
+# Archivos de sistema
+.DS_Store
+
+# Variables de entorno
+.env
+.env.*
+
+# Logs
+npm-debug.log*
+
+# Imagenes cargadas en desarrollo (no persistir en Git)
+uploads/products/*
+!uploads/products/.gitkeep

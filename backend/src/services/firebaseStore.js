@@ -1,4 +1,4 @@
-const { getApps, initializeApp } = require("firebase-admin/app");
+const { cert, getApps, initializeApp } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { createHash } = require("node:crypto");
@@ -8,7 +8,12 @@ function app() {
   if (!projectId) throw fallo(503, "Configura FIREBASE_PROJECT_ID en la API.");
   return (
     getApps().find((a) => a.name === "ferrestock") ||
-    initializeApp({ projectId }, "ferrestock")
+    initializeApp(
+      process.env.FIREBASE_SERVICE_ACCOUNT_JSON
+        ? { projectId, credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON)) }
+        : { projectId },
+      "ferrestock"
+    )
   );
 }
 const db = () => getFirestore(app());

@@ -1,5 +1,5 @@
 const { listarInventario, registrarMovimiento } = require("../services/inventarioService");
-const { getPool, sql } = require("../config/database");
+const { obtenerCategorias } = require("../services/categoriasService");
 
 const getInventario = async (req, res) => {
   try {
@@ -27,9 +27,11 @@ const getInventario = async (req, res) => {
 
 const getCategoriasInventario = async (_req, res) => {
   try {
-    const pool = await getPool();
-    const result = await pool.request().query("SELECT id_categoria, nombre FROM categorias ORDER BY nombre");
-    return res.json({ ok: true, data: result.recordset });
+    const categorias = await obtenerCategorias();
+    return res.json({
+      ok: true,
+      data: categorias.map(({ id_categoria, nombre }) => ({ id_categoria, nombre })),
+    });
   } catch (error) {
     console.error("Error al consultar categorías:", error.message);
     return res.status(500).json({ ok: false, message: "No se pudieron consultar las categorías" });

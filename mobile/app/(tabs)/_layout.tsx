@@ -52,13 +52,13 @@ export default function TabsLayout() {
           }}
         />
         <Tabs.Screen
-          name="favoritos"
+          name="carrito"
           options={{
-            title: "Favoritos",
+            title: "Carrito",
             tabBarIcon: ({ focused }) => (
               <TabBarIcon
-                nombre="heart-outline"
-                nombreActivo="heart"
+                nombre="cart-outline"
+                nombreActivo="cart"
                 enfocado={focused}
               />
             ),

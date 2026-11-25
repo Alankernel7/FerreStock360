@@ -6,6 +6,7 @@ import {
   getAuth,
   GoogleAuthProvider,
   sendPasswordResetEmail,
+  sendEmailVerification,
   setPersistence,
   signInWithEmailAndPassword,
   signInWithPopup,
@@ -67,6 +68,16 @@ export async function registroFirebase(
   const { user } = await createUserWithEmailAndPassword(auth, email, password);
   try {
     await updateProfile(user, { displayName: nombre });
+    await sendEmailVerification(user).catch((error) => {
+      console.warn("No se pudo enviar el correo de verificación:", error);
+    });
+    const api = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
+    const response = await fetch(api + "/auth/firebase", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + (await user.getIdToken()) },
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || "No se pudo crear el perfil de usuario.");
   } finally {
     await signOut(auth);
   }

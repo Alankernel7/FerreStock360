@@ -16,7 +16,7 @@ const { getProductos, getProductoById, createProducto, updateProducto, deletePro
 const {verificarToken, tokenOpcional, soloAdminActivo } = require("../middleware/authMiddleware");
 const { subirImagenesProducto } = require("../middleware/subirImagenesProducto");
 
-router.get("/productos", getProductos);
+router.get("/productos", tokenOpcional, getProductos);
 router.get("/productos/:id", tokenOpcional, getProductoById);
 
 router.post(

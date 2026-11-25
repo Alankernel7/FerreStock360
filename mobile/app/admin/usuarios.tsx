@@ -47,7 +47,7 @@ const ESTADOS: { valor: FiltroEstado; etiqueta: string }[] = [
   { valor: "inactivo", etiqueta: "Inactivos" },
 ];
 
-const ETIQUETA_ROL: Record<Rol, string> = {
+const ETIQUETA_ROL: Partial<Record<Rol, string>> = {
   admin: "Admin",
   empleado: "Empleado",
   usuario: "Usuario",
@@ -243,7 +243,7 @@ export default function AdminUsuariosScreen() {
               <View style={styles.modalContenido}>
                 <Dato etiqueta="Nombre" valor={detalle.nombre || "—"} />
                 <Dato etiqueta="Correo" valor={detalle.email || "—"} />
-                <Dato etiqueta="Rol" valor={ETIQUETA_ROL[detalle.rol]} />
+                <Dato etiqueta="Rol" valor={ETIQUETA_ROL[detalle.rol] ?? detalle.rol} />
                 <Dato
                   etiqueta="Estado"
                   valor={detalle.estado === "activo" ? "Activo" : "Inactivo"}

@@ -1,551 +1,130 @@
-import { apiConfigurada, catalogoCompartido, administrarCatalogo } from "./operaciones";
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getCountFromServer,
-  getDoc,
-  getDocs,
-  query,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
-  where,
-  type DocumentData,
-  type QueryDocumentSnapshot,
-} from "firebase/firestore";
+import { apiConfigurada, apiBaseUrl, catalogoCompartido, administrarCatalogo, sesionOperativa } from "./operaciones";
 import type { User } from "firebase/auth";
-import {
-  dbFirestore,
-  firebaseConfigurado,
-  mensajeConfigFirebase,
-} from "../config/firebase";
 import type {
-  Actividad,
-  Categoria,
-  Favorito,
-  PerfilUsuario,
-  Producto,
-  ProductoId,
-  ProveedorAuth,
-  Rol,
-  TipoActividad,
+  Actividad, Categoria, PerfilUsuario, Producto, ProductoId,
+  ProveedorAuth, Rol, TipoActividad,
 } from "../types";
 
-const COLECCIONES = {
-  usuarios: "users",
-  productos: "products",
-  categorias: "categories",
-  favoritos: "favorites",
-  historial: "activity_history",
-} as const;
+const requerirApi = () => {
+  if (!apiConfigurada) throw new Error("Configura EXPO_PUBLIC_API_URL para usar los servicios compartidos.");
+};
 
-const ROL_INICIAL: Rol = "usuario";
-
-function obtenerDb() {
-  if (!dbFirestore) {
-    throw new Error(
-      "Firebase no está configurado. Completa las variables de entorno en .env (ver .env.example)."
-    );
-  }
-  return dbFirestore;
+async function solicitar<T>(path: string, method = "GET", body?: object): Promise<T> {
+  requerirApi();
+  const token = await sesionOperativa();
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    method,
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const resultado = await response.json();
+  if (!response.ok) throw new Error(resultado.message || "La operación no se pudo completar.");
+  return resultado.data as T;
 }
 
-/** Convierte Timestamp de Firestore (o string) a fecha ISO 8601. */
-function aISO(valor: unknown, respaldo?: string): string {
-  if (
-    valor &&
-    typeof valor === "object" &&
-    "toDate" in valor &&
-    typeof (valor as { toDate: () => Date }).toDate === "function"
-  ) {
-    return (valor as { toDate: () => Date }).toDate().toISOString();
-  }
-  if (typeof valor === "string" && valor.trim() !== "") {
-    const fecha = new Date(valor);
-    if (!Number.isNaN(fecha.getTime())) return fecha.toISOString();
-  }
-  return respaldo ?? new Date().toISOString();
-}
-
-function aNumero(valor: unknown, respaldo = 0): number {
-  return typeof valor === "number" && !Number.isNaN(valor) ? valor : respaldo;
-}
-
-function aTexto(valor: unknown, respaldo = ""): string {
-  return typeof valor === "string" ? valor : respaldo;
-}
-
-function aBooleano(valor: unknown, respaldo = true): boolean {
-  return typeof valor === "boolean" ? valor : respaldo;
-}
-
-function mapearPerfil(snapshot: QueryDocumentSnapshot<DocumentData>): PerfilUsuario {
-  const data = snapshot.data();
-  return {
-    uid: snapshot.id,
-    nombre: aTexto(data.nombre),
-    email: aTexto(data.email),
-    rol: (data.rol as Rol) ?? ROL_INICIAL,
-    estado: data.estado === "inactivo" ? "inactivo" : "activo",
-    fecha_creacion: aISO(data.fecha_creacion),
-    proveedor: data.proveedor === "google" ? "google" : "password",
-    foto_url: typeof data.foto_url === "string" ? data.foto_url : null,
-  };
-}
-
-function mapearProducto(snapshot: QueryDocumentSnapshot<DocumentData>): Producto {
-  const data = snapshot.data();
-  return {
-    id_producto: snapshot.id,
-    imagen_2: typeof data.imagen_2 === "string" ? data.imagen_2 : null,
-    nombre: aTexto(data.nombre, "Sin nombre"),
-    descripcion: typeof data.descripcion === "string" ? data.descripcion : null,
-    codigo: aTexto(data.codigo),
-    precio: aNumero(data.precio),
-    imagen_url: typeof data.imagen_url === "string" ? data.imagen_url : null,
-    stock_actual: aNumero(data.stock_actual),
-    stock_minimo: aNumero(data.stock_minimo),
-    id_categoria: aNumero(
-      data.categoria_id,
-      aNumero(data.id_categoria)
-    ),
-    estado: aBooleano(data.estado, true),
-    fecha_creacion: aISO(data.fecha_creacion),
-  };
-}
-
-function mapearCategoria(snapshot: QueryDocumentSnapshot<DocumentData>): Categoria {
-  const data = snapshot.data();
-  return {
-    id_categoria: aNumero(data.id_categoria, Number(snapshot.id) || 0),
-    nombre: aTexto(data.nombre, "Sin nombre"),
-    descripcion: typeof data.descripcion === "string" ? data.descripcion : null,
-  };
-}
-
-function mapearFavorito(snapshot: QueryDocumentSnapshot<DocumentData>): Favorito {
-  const data = snapshot.data();
-  return {
-    id: snapshot.id,
-    uid: aTexto(data.uid),
-    producto_id: (data.producto_id as ProductoId) ?? "",
-    nombre: aTexto(data.nombre),
-    precio: aNumero(data.precio),
-    imagen_url: typeof data.imagen_url === "string" ? data.imagen_url : null,
-    stock_actual: aNumero(data.stock_actual),
-    stock_minimo: aNumero(data.stock_minimo),
-    categoria: aTexto(data.categoria),
-    creado_en: aISO(data.creado_en),
-  };
-}
-
-function mapearActividad(snapshot: QueryDocumentSnapshot<DocumentData>): Actividad {
-  const data = snapshot.data();
-  return {
-    id: snapshot.id,
-    uid: aTexto(data.uid),
-    tipo: (data.tipo as TipoActividad) ?? "login",
-    descripcion: aTexto(data.descripcion),
-    fecha: aISO(data.fecha),
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Usuarios (perfil)
-// ---------------------------------------------------------------------------
+const mapPerfil = (p: Partial<PerfilUsuario> & { rol?: string }): PerfilUsuario => ({
+  uid: String(p.uid || ""), nombre: String(p.nombre || "Usuario"), email: String(p.email || ""),
+  rol: String(p.rol || "usuario") as Rol,
+  estado: p.estado === "inactivo" ? "inactivo" : "activo",
+  fecha_creacion: String(p.fecha_creacion || new Date().toISOString()),
+  proveedor: p.proveedor === "google" ? "google" : "password", foto_url: p.foto_url || null,
+});
 
 export async function obtenerPerfilUsuario(uid: string): Promise<PerfilUsuario | null> {
-  const db = obtenerDb();
-  const snapshot = await getDoc(doc(db, COLECCIONES.usuarios, uid));
-  if (!snapshot.exists()) return null;
-  return mapearPerfil(snapshot as QueryDocumentSnapshot<DocumentData>);
+  const profile = await solicitar<PerfilUsuario>("/auth/perfil");
+  return profile.uid === uid ? mapPerfil(profile) : null;
 }
 
-/**
- * Crea (o sobrescribe con merge) el documento de perfil del usuario.
- * Se usa al registrarse y al iniciar sesión con correo y contraseña.
- */
-export async function crearPerfilUsuario(
-  user: User,
-  opciones?: { nombre?: string; proveedor?: ProveedorAuth; rol?: Rol }
-): Promise<PerfilUsuario> {
-  const db = obtenerDb();
-  const nombre =
-    opciones?.nombre?.trim() ||
-    user.displayName?.trim() ||
-    user.email?.split("@")[0] ||
-    "Usuario";
-
-  const perfil: PerfilUsuario = {
-    uid: user.uid,
-    nombre,
-    email: user.email ?? "",
-    rol: opciones?.rol ?? ROL_INICIAL,
-    estado: "activo",
-    fecha_creacion: new Date().toISOString(),
-    proveedor: opciones?.proveedor ?? "password",
-    foto_url: user.photoURL ?? null,
-  };
-
-  await setDoc(
-    doc(db, COLECCIONES.usuarios, user.uid),
-    {
-      ...perfil,
-      fecha_creacion: serverTimestamp(),
-      actualizado_en: serverTimestamp(),
-    },
-    { merge: true }
-  );
-
-  return perfil;
+export async function crearPerfilUsuario(user: User, opciones?: { nombre?: string; proveedor?: ProveedorAuth; rol?: Rol }): Promise<PerfilUsuario> {
+  const profile = await solicitar<PerfilUsuario>("/auth/perfil", "PATCH", {
+    nombre: opciones?.nombre?.trim() || user.displayName || user.email?.split("@")[0] || "Usuario",
+  });
+  return mapPerfil({ ...profile, uid: user.uid, proveedor: opciones?.proveedor });
 }
 
-/**
- * Garantiza que el usuario autenticado tenga documento de perfil en Firestore.
- * Si no existe, lo crea con la información de Firebase Authentication.
- */
-export async function asegurarPerfilUsuario(
-  user: User,
-  opciones?: { proveedor?: ProveedorAuth }
-): Promise<PerfilUsuario | null> {
+export async function asegurarPerfilUsuario(user: User, opciones?: { proveedor?: ProveedorAuth }): Promise<PerfilUsuario> {
+  const profile = await solicitar<PerfilUsuario>("/auth/perfil");
+  return mapPerfil({ ...profile, uid: user.uid, proveedor: opciones?.proveedor || profile.proveedor });
+}
+
+export async function actualizarPerfilUsuario(_uid: string, datos: Partial<Pick<PerfilUsuario, "nombre" | "foto_url">>): Promise<void> {
+  if (datos.nombre !== undefined) await solicitar("/auth/perfil", "PATCH", { nombre: datos.nombre });
+}
+
+export type ResultadoProductos = { productos: Producto[]; error: string | null };
+export async function obtenerProductos(incluirInactivos = false): Promise<ResultadoProductos> {
+  if (!apiConfigurada) return { productos: [], error: "Configura EXPO_PUBLIC_API_URL." };
   try {
-    const existente = await obtenerPerfilUsuario(user.uid);
-    if (existente) return existente;
-    return await crearPerfilUsuario(user, { proveedor: opciones?.proveedor });
-  } catch (error) {
-    console.warn("[firestore] No se pudo asegurar el perfil del usuario:", error);
-    return null;
-  }
-}
-
-export async function actualizarPerfilUsuario(
-  uid: string,
-  datos: Partial<Pick<PerfilUsuario, "nombre" | "foto_url">>
-): Promise<void> {
-  const db = obtenerDb();
-  const cambios: DocumentData = { actualizado_en: serverTimestamp() };
-  if (datos.nombre !== undefined) cambios.nombre = datos.nombre.trim();
-  if (datos.foto_url !== undefined) cambios.foto_url = datos.foto_url;
-  await updateDoc(doc(db, COLECCIONES.usuarios, uid), cambios);
-}
-
-// ---------------------------------------------------------------------------
-// Productos y categorías (catálogo público)
-// ---------------------------------------------------------------------------
-
-export type ResultadoProductos = {
-  productos: Producto[];
-  /** Mensaje de error si la consulta a Firestore falló. */
-  error: string | null;
-};
-
-/**
- * Consulta los productos en Firestore (fuente de verdad del catálogo).
- * `incluirInactivos` permite que el panel administrativo vea también los
- * productos con estado inactivo.
- */
-export async function obtenerProductos(
-  incluirInactivos = false
-): Promise<ResultadoProductos> {
-  if (!firebaseConfigurado || !dbFirestore) {
-    return { productos: [], error: mensajeConfigFirebase };
-  }
-  try {
-    const db = obtenerDb();
-    if(apiConfigurada){
-      const lista=await catalogoCompartido(incluirInactivos);
-      return {productos:lista.map(p=>({...p,id_producto:p.firestore_id,imagen_url:p.imagen_1,stock_actual:incluirInactivos?p.stock_actual:p.stock_disponible})),error:null};
-    }
-    const base = collection(db, COLECCIONES.productos);
-    const consulta = incluirInactivos
-      ? query(base)
-      : query(base, where("estado", "==", true));
-    const snapshot = await getDocs(consulta);
-    return { productos: snapshot.docs.map(mapearProducto), error: null };
-  } catch (error) {
-    console.warn("[firestore] Error al consultar productos:", error);
+    const lista = await catalogoCompartido(incluirInactivos);
     return {
-      productos: [],
-      error: "No se pudieron cargar los productos. Revisa tu conexión e intenta de nuevo.",
+      productos: lista.map((p) => ({
+        id_producto: p.firestore_id || p.id_producto, imagen_2: p.imagen_2,
+        nombre: p.nombre, descripcion: p.descripcion, codigo: p.codigo, precio: p.precio,
+        imagen_url: p.imagen_1, stock_actual: p.stock_actual,
+        stock_minimo: p.stock_minimo, disponible: p.disponible,
+        id_categoria: p.id_categoria, estado: p.estado,
+        fecha_creacion: p.fecha_creacion,
+      })), error: null,
     };
+  } catch (error) {
+    return { productos: [], error: error instanceof Error ? error.message : "No se pudieron cargar los productos." };
   }
 }
 
-export type ResultadoCategorias = {
-  categorias: Categoria[];
-  error: string | null;
-};
-
-/** Consulta las categorías en Firestore (fuente de verdad del catálogo). */
+export type ResultadoCategorias = { categorias: Categoria[]; error: string | null };
 export async function obtenerCategorias(): Promise<ResultadoCategorias> {
-  if (!firebaseConfigurado || !dbFirestore) {
-    return { categorias: [], error: mensajeConfigFirebase };
-  }
+  if (!apiConfigurada) return { categorias: [], error: "Configura EXPO_PUBLIC_API_URL." };
   try {
-    const db = obtenerDb();
-    const snapshot = await getDocs(collection(db, COLECCIONES.categorias));
-    const categorias = snapshot.docs
-      .map(mapearCategoria)
-      .sort((a, b) => a.nombre.localeCompare(b.nombre));
-    return { categorias, error: null };
+    const response = await fetch(`${apiBaseUrl}/categorias`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || "No se pudieron cargar las categorías.");
+    return { categorias: (data as Categoria[]).sort((a, b) => a.nombre.localeCompare(b.nombre)), error: null };
   } catch (error) {
-    console.warn("[firestore] Error al consultar categorías:", error);
-    return {
-      categorias: [],
-      error: "No se pudieron cargar las categorías. Revisa tu conexión e intenta de nuevo.",
-    };
+    return { categorias: [], error: error instanceof Error ? error.message : "No se pudieron cargar las categorías." };
   }
 }
 
-/** Campos editables de un producto (los que escribe el administrador). */
 export type DatosProducto = {
-  imagen_2?: string | null;
-  nombre: string;
-  descripcion: string | null;
-  codigo: string;
-  precio: number;
-  imagen_url: string | null;
-  stock_actual: number;
-  stock_minimo: number;
-  id_categoria: number;
-  estado: boolean;
+  imagen_2?: string | null; nombre: string; descripcion: string | null; codigo: string;
+  precio: number; imagen_url: string | null; stock_actual: number; stock_minimo: number;
+  id_categoria: number; estado: boolean;
 };
-
-/** Crea un producto en Firestore (solo administradores por reglas). */
 export async function crearProducto(datos: DatosProducto): Promise<void> {
-  if (apiConfigurada) { await administrarCatalogo("/productos","POST",{...datos,imagen_1:datos.imagen_url}); return; }
-  const db = obtenerDb();
-
-  const { id_categoria, ...resto } = datos;
-
-  await addDoc(collection(db, COLECCIONES.productos), {
-    ...resto,
-    categoria_id: id_categoria,
-    fecha_creacion: serverTimestamp(),
-    actualizado_en: serverTimestamp(),
-  });
+  await administrarCatalogo("/productos", "POST", { ...datos, imagen_1: datos.imagen_url });
 }
-
-/** Actualiza un producto existente en Firestore. */
-export async function actualizarProducto(
-  id: ProductoId,
-  datos: DatosProducto
-): Promise<void> {
-  if (apiConfigurada) { const p=(await catalogoCompartido(true)).find(p=>p.firestore_id===String(id)); if(!p) throw new Error("Producto inexistente."); await administrarCatalogo("/productos/"+p.id_producto,"PUT",{...datos,imagen_1:datos.imagen_url,imagen_2:datos.imagen_2===undefined?p.imagen_2:datos.imagen_2}); return; }
-  const db = obtenerDb();
-
-  const { id_categoria, ...resto } = datos;
-
-  await updateDoc(doc(db, COLECCIONES.productos, String(id)), {
-    ...resto,
-    categoria_id: id_categoria,
-    actualizado_en: serverTimestamp(),
-  });
+export async function actualizarProducto(id: ProductoId, datos: DatosProducto): Promise<void> {
+  const items = await catalogoCompartido(true);
+  const p = items.find((item) => item.firestore_id === String(id) || item.id_producto === Number(id));
+  if (!p) throw new Error("Producto inexistente.");
+  await administrarCatalogo(`/productos/${p.id_producto}`, "PUT", { ...datos, imagen_1: datos.imagen_url, imagen_2: datos.imagen_2 ?? p.imagen_2 });
 }
-
-/** Elimina un producto de Firestore. */
 export async function eliminarProducto(id: ProductoId): Promise<void> {
-  if (apiConfigurada) { const p=(await catalogoCompartido(true)).find(p=>p.firestore_id===String(id)); if(!p) throw new Error("Producto inexistente."); await administrarCatalogo("/productos/"+p.id_producto,"DELETE"); return; }
-  const db = obtenerDb();
-  await deleteDoc(doc(db, COLECCIONES.productos, String(id)));
+  const items = await catalogoCompartido(true);
+  const p = items.find((item) => item.firestore_id === String(id) || item.id_producto === Number(id));
+  if (!p) throw new Error("Producto inexistente.");
+  await administrarCatalogo(`/productos/${p.id_producto}`, "DELETE");
 }
 
-/** Campos editables de una categoría. */
-export type DatosCategoria = {
-  nombre: string;
-  descripcion: string | null;
-};
-
-/**
- * Crea una categoría con el siguiente `id_categoria` disponible.
- * El id del documento es `String(id_categoria)`, igual que los datos existentes.
- */
-export async function crearCategoria(datos: DatosCategoria): Promise<void> {
-  if (apiConfigurada) { await administrarCatalogo("/categorias","POST",datos); return; }
-  const db = obtenerDb();
-  const snapshot = await getDocs(collection(db, COLECCIONES.categorias));
-  const ids = snapshot.docs
-    .map((documento) => Number(documento.id))
-    .filter((n) => !Number.isNaN(n));
-  const siguiente = (ids.length > 0 ? Math.max(...ids) : 0) + 1;
-
-  await setDoc(doc(db, COLECCIONES.categorias, String(siguiente)), {
-    id_categoria: siguiente,
-    nombre: datos.nombre.trim(),
-    descripcion: datos.descripcion,
-    actualizado_en: serverTimestamp(),
-  });
+export type DatosCategoria = { nombre: string; descripcion: string | null };
+export async function crearCategoria(datos: DatosCategoria): Promise<void> { await administrarCatalogo("/categorias", "POST", datos); }
+export async function actualizarCategoria(id: number, datos: DatosCategoria): Promise<void> { await administrarCatalogo(`/categorias/${id}`, "PUT", datos); }
+export async function eliminarCategoria(id: number): Promise<void> { await administrarCatalogo(`/categorias/${id}`, "DELETE"); }
+export async function contarProductosDeCategoria(idCategoria: number): Promise<number> {
+  const result = await obtenerProductos(true);
+  return result.productos.filter((p) => p.id_categoria === idCategoria).length;
 }
 
-/** Actualiza una categoría existente. */
-export async function actualizarCategoria(
-  id: number,
-  datos: DatosCategoria
-): Promise<void> {
-  if (apiConfigurada) { await administrarCatalogo("/categorias/"+id,"PUT",datos); return; }
-  const db = obtenerDb();
-  await updateDoc(doc(db, COLECCIONES.categorias, String(id)), {
-    id_categoria: id,
-    nombre: datos.nombre.trim(),
-    descripcion: datos.descripcion,
-    actualizado_en: serverTimestamp(),
-  });
-}
-
-/** Elimina una categoría de Firestore. */
-export async function eliminarCategoria(id: number): Promise<void> {
-  if (apiConfigurada) { await administrarCatalogo("/categorias/"+id,"DELETE"); return; }
-  const db = obtenerDb();
-  await deleteDoc(doc(db, COLECCIONES.categorias, String(id)));
-}
-
-/** Cuenta los productos asociados a una categoría (para advertir antes de borrar). */
-export async function contarProductosDeCategoria(
-  idCategoria: number
-): Promise<number> {
-  const db = obtenerDb();
-  const resultado = await getCountFromServer(
-    query(
-      collection(db, COLECCIONES.productos),
-      where("categoria_id", "==", idCategoria)
-    )
-  );
-  return resultado.data().count;
-}
-
-// ---------------------------------------------------------------------------
-// Favoritos (privados por usuario)
-// ---------------------------------------------------------------------------
-
-function idFavorito(uid: string, productoId: ProductoId): string {
-  return `${uid}_${String(productoId)}`;
-}
-
-/** Consulta los favoritos del usuario autenticado. */
-export async function obtenerFavoritos(uid: string): Promise<Favorito[]> {
-  const db = obtenerDb();
-  const consulta = query(
-    collection(db, COLECCIONES.favoritos),
-    where("uid", "==", uid)
-  );
-  const snapshot = await getDocs(consulta);
-  return snapshot.docs
-    .map(mapearFavorito)
-    .sort((a, b) => b.creado_en.localeCompare(a.creado_en));
-}
-
-/**
- * Agrega o quita un producto de los favoritos del usuario.
- * Devuelve true si el producto quedó agregado, false si se quitó.
- * `categoriaNombre` se guarda como snapshot para mostrar en la lista.
- */
-export async function alternarFavorito(
-  uid: string,
-  producto: Producto,
-  categoriaNombre = ""
-): Promise<{ agregado: boolean }> {
-  const db = obtenerDb();
-  const referencia = doc(
-    db,
-    COLECCIONES.favoritos,
-    idFavorito(uid, producto.id_producto)
-  );
-
-  // La regla de lectura de `favorites` solo autoriza documentos existentes del
-  // propio usuario. Consultar un favorito que todavía no existe produce
-  // "permission denied", por lo que se interpreta como "no existe" y se crea.
-  let existe = false;
-  try {
-    existe = (await getDoc(referencia)).exists();
-  } catch {
-    existe = false;
-  }
-
-  if (existe) {
-    await deleteDoc(referencia);
-    return { agregado: false };
-  }
-
-  await setDoc(referencia, {
-    uid,
-    producto_id: String(producto.id_producto),
-    nombre: producto.nombre,
-    precio: producto.precio,
-    imagen_url: producto.imagen_url,
-    stock_actual: producto.stock_actual,
-    stock_minimo: producto.stock_minimo,
-    categoria: categoriaNombre,
-    creado_en: serverTimestamp(),
-  });
-  return { agregado: true };
-}
-
-// ---------------------------------------------------------------------------
-// Usuarios (administración)
-// ---------------------------------------------------------------------------
-
-/**
- * Lista todos los perfiles de usuario. Requiere que la regla de Firestore
- * permita la lectura a administradores (`allow read: if esAdmin()`).
- */
 export async function obtenerUsuarios(): Promise<PerfilUsuario[]> {
-  const db = obtenerDb();
-  const snapshot = await getDocs(collection(db, COLECCIONES.usuarios));
-  return snapshot.docs
-    .map(mapearPerfil)
-    .sort((a, b) => a.nombre.localeCompare(b.nombre));
+  const result = await solicitar<{ usuarios: Array<PerfilUsuario & { id_usuario: number }> }>("/usuarios");
+  return result.usuarios.map((u) => mapPerfil({ ...u, uid: String(u.uid || u.id_usuario) }));
 }
+export async function contarUsuarios(): Promise<number> { return (await obtenerUsuarios()).length; }
 
-/**
- * Cuenta los usuarios registrados sin descargar los documentos
- * (indicador del resumen del panel administrativo).
- */
-export async function contarUsuarios(): Promise<number> {
-  const db = obtenerDb();
-  const resultado = await getCountFromServer(
-    collection(db, COLECCIONES.usuarios)
-  );
-  return resultado.data().count;
+export async function registrarActividad(_uid: string, tipo: TipoActividad, descripcion: string): Promise<void> {
+  try { await solicitar("/actividad", "POST", { tipo, descripcion }); }
+  catch (error) { console.warn("[api] No se pudo registrar la actividad:", error); }
 }
-
-// ---------------------------------------------------------------------------
-// Historial de actividad (privado por usuario)
-// ---------------------------------------------------------------------------
-
-/**
- * Registra una acción del usuario en `activity_history`.
- * Es una operación best-effort: un fallo aquí no interrumpe el flujo principal.
- */
-export async function registrarActividad(
-  uid: string,
-  tipo: TipoActividad,
-  descripcion: string
-): Promise<void> {
-  if (!firebaseConfigurado || !dbFirestore) return;
-  try {
-    const db = obtenerDb();
-    await addDoc(collection(db, COLECCIONES.historial), {
-      uid,
-      tipo,
-      descripcion,
-      fecha: serverTimestamp(),
-    });
-  } catch (error) {
-    console.warn("[firestore] No se pudo registrar la actividad:", error);
-  }
-}
-
-/** Consulta el historial de acciones del usuario autenticado. */
 export async function obtenerHistorial(uid: string): Promise<Actividad[]> {
-  const db = obtenerDb();
-  const consulta = query(
-    collection(db, COLECCIONES.historial),
-    where("uid", "==", uid)
-  );
-  const snapshot = await getDocs(consulta);
-  return snapshot.docs
-    .map(mapearActividad)
-    .sort((a, b) => b.fecha.localeCompare(a.fecha));
+  const items = await solicitar<Actividad[]>("/actividad");
+  return items.filter((item) => item.uid === uid);
 }

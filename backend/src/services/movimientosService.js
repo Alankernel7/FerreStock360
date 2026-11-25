@@ -1,43 +1,96 @@
-const { getPool, sql } = require("../config/database");
+const {
+  COLECCIONES,
+  db,
+  aISO,
+  aFecha,
+  aNumero,
+  idNumericoDocumento,
+} = require("../config/firestore");
+
+const inicioDia = (valor) => {
+  if (!valor) return null;
+  if (valor instanceof Date) {
+    const fecha = new Date(valor);
+    fecha.setHours(0, 0, 0, 0);
+    return fecha;
+  }
+  const fecha = new Date(`${String(valor).slice(0, 10)}T00:00:00`);
+  return Number.isNaN(fecha.getTime()) ? null : fecha;
+};
 
 const listarMovimientos = async ({ busqueda, tipo, desde, hasta, direccion }) => {
-  const pool = await getPool();
-  const request = pool.request();
-  const filtros = ["1 = 1"];
+  const [movimientos, productos, usuarios] = await Promise.all([
+    db().collection(COLECCIONES.movimientos).get(),
+    db().collection(COLECCIONES.productos).get(),
+    db().collection(COLECCIONES.usuarios).get(),
+  ]);
 
-  if (busqueda) {
-    request.input("busqueda", sql.NVarChar(150), `%${busqueda}%`);
-    filtros.push(`(
-      p.nombre LIKE @busqueda OR p.codigo LIKE @busqueda OR
-      u.nombre LIKE @busqueda OR mi.motivo LIKE @busqueda
-    )`);
-  }
-  if (tipo !== "todos") {
-    request.input("tipo_movimiento", sql.NVarChar(20), tipo);
-    filtros.push("mi.tipo_movimiento = @tipo_movimiento");
-  }
-  if (desde) {
-    request.input("desde", sql.Date, desde);
-    filtros.push("mi.fecha_movimiento >= @desde");
-  }
-  if (hasta) {
-    request.input("hasta", sql.Date, hasta);
-    filtros.push("mi.fecha_movimiento < DATEADD(day, 1, @hasta)");
+  const productosPorId = new Map();
+  for (const documento of productos.docs) {
+    productosPorId.set(idNumericoDocumento(documento, "id_producto"), documento.data());
   }
 
-  const sentido = direccion === "asc" ? "ASC" : "DESC";
-  const result = await request.query(`
-    SELECT mi.id_movimiento, mi.id_producto, p.nombre AS producto,
-      p.codigo AS codigo_producto, mi.tipo_movimiento, mi.cantidad,
-      mi.motivo, mi.fecha_movimiento, mi.id_usuario, u.nombre AS usuario
-    FROM movimientos_inventario mi
-    INNER JOIN productos p ON p.id_producto = mi.id_producto
-    INNER JOIN usuarios u ON u.id_usuario = mi.id_usuario
-    WHERE ${filtros.join(" AND ")}
-    ORDER BY mi.fecha_movimiento ${sentido}, mi.id_movimiento ${sentido}
-  `);
+  const usuariosPorId = new Map();
+  for (const documento of usuarios.docs) {
+    usuariosPorId.set(idNumericoDocumento(documento, "id_usuario"), documento.data());
+  }
 
-  return result.recordset;
+  const termino = busqueda ? String(busqueda).toLowerCase() : null;
+  const desdeFecha = inicioDia(desde);
+  const hastaFecha = inicioDia(hasta);
+  if (hastaFecha) hastaFecha.setDate(hastaFecha.getDate() + 1);
+
+  const filas = [];
+
+  for (const documento of movimientos.docs) {
+    const data = documento.data();
+    const idProducto = aNumero(data.id_producto);
+    const idUsuario = aNumero(data.id_usuario);
+    const producto = productosPorId.get(idProducto) || null;
+    const usuario = usuariosPorId.get(idUsuario) || null;
+    const fecha = aFecha(data.fecha_movimiento);
+
+    if (tipo && tipo !== "todos" && data.tipo_movimiento !== tipo) continue;
+    if (desdeFecha && (!fecha || fecha < desdeFecha)) continue;
+    if (hastaFecha && (!fecha || fecha >= hastaFecha)) continue;
+
+    if (termino) {
+      const texto = [
+        producto?.nombre,
+        producto?.codigo,
+        usuario?.nombre,
+        data.motivo,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      if (!texto.includes(termino)) continue;
+    }
+
+    filas.push({
+      id_movimiento:
+        aNumero(data.id_movimiento) ||
+        idNumericoDocumento(documento, "id_movimiento"),
+      id_producto: idProducto,
+      producto: producto?.nombre ?? null,
+      codigo_producto: producto?.codigo ?? null,
+      tipo_movimiento: data.tipo_movimiento,
+      cantidad: aNumero(data.cantidad),
+      motivo: data.motivo ?? null,
+      fecha_movimiento: aISO(data.fecha_movimiento),
+      id_usuario: idUsuario,
+      usuario: usuario?.nombre ?? null,
+    });
+  }
+
+  const sentido = direccion === "asc" ? 1 : -1;
+  filas.sort((a, b) => {
+    const fechaA = a.fecha_movimiento ? Date.parse(a.fecha_movimiento) : 0;
+    const fechaB = b.fecha_movimiento ? Date.parse(b.fecha_movimiento) : 0;
+    return (fechaA - fechaB) * sentido || (a.id_movimiento - b.id_movimiento) * sentido;
+  });
+
+  return filas;
 };
 
 module.exports = { listarMovimientos };

@@ -9,8 +9,7 @@ import {
 export default function SesionFirebase() {
   useEffect(() => {
     if (
-      !firebaseDisponible ||
-      process.env.NEXT_PUBLIC_FIREBASE_AUTH_ENABLED !== "true"
+      !firebaseDisponible
     )
       return;
     const auth = getAuth(aplicacionFirebase());

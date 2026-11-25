@@ -7,7 +7,6 @@ import {
   initializeAuth,
   type Auth,
 } from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 /**
@@ -34,7 +33,6 @@ export const mensajeConfigFirebase = firebaseConfigurado
 
 let appFirebase: FirebaseApp | null = null;
 let authFirebase: Auth | null = null;
-let dbFirestore: Firestore | null = null;
 
 if (firebaseConfigurado) {
   appFirebase = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
@@ -50,7 +48,6 @@ if (firebaseConfigurado) {
     authFirebase = getAuth(appFirebase);
   }
 
-  dbFirestore = getFirestore(appFirebase);
 }
 
-export { appFirebase, authFirebase, dbFirestore };
+export { appFirebase, authFirebase };

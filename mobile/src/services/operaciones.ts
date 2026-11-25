@@ -1,4 +1,5 @@
 import Constants from "expo-constants";
+import { DeviceEventEmitter } from "react-native";
 import { authFirebase } from "../config/firebase";
 
 const host = Constants.expoConfig?.hostUri?.split(":")[0];
@@ -7,6 +8,7 @@ const url = (
   (__DEV__ && host ? "http://" + host + ":3001/api" : undefined)
 )?.replace(/\/$/, "");
 export const apiConfigurada = Boolean(url);
+export const apiBaseUrl = url;
 
 async function respuesta<T>(
   path: string,
@@ -46,14 +48,28 @@ export interface Item {
   id_producto: number;
   cantidad: number;
   nombre: string;
+  codigo?: string;
   precio: number;
+  imagen?: string | null;
+  stock_actual?: number;
+  stock_disponible?: number;
+  maximo_carrito?: number;
+  estado?: boolean;
+  estado_reserva?: string;
+  fecha_expiracion?: string | null;
 }
 export interface Pedido {
   id_pedido: number;
   codigo_pedido: string;
+  subtotal?: number;
   total: number;
   estado_pedido: string;
+  estado_pago?: string;
+  metodo_pago?: "efectivo" | "tarjeta";
+  fecha_pedido?: string;
   fecha_retiro: string;
+  fecha_entrega?: string | null;
+  detalles?: Array<{ id_producto: number; nombre: string; cantidad: number; subtotal: number; imagen?: string | null }>;
   aprobado?: boolean;
   mensaje?: string;
 }
@@ -65,13 +81,15 @@ export interface Aviso {
 
 export async function cargarCompras() {
   const token = await sesionOperativa();
-  const [items, pedidos, fechas, avisos] = await Promise.all([
+  const [items, pedidos, fechas] = await Promise.all([
     respuesta<Item[]>("/carrito", token),
     respuesta<Pedido[]>("/mis-pedidos", token),
     respuesta<string[]>("/pedidos/fechas-retiro", token),
-    respuesta<{ notificaciones: Aviso[] }>("/mis-notificaciones", token),
   ]);
-  return { items, pedidos, fechas, avisos: avisos.notificaciones };
+  return { items, pedidos, fechas };
+}
+export async function obtenerCarritoMovil() {
+  return respuesta<Item[]>("/carrito", await sesionOperativa());
 }
 export async function agregarProducto(codigo: string) {
   const token = await sesionOperativa();
@@ -90,20 +108,37 @@ export async function agregarProducto(codigo: string) {
   const items = await respuesta<Item[]>("/carrito", token);
   const cantidad =
     (items.find((item) => item.id_producto === id)?.cantidad ?? 0) + 1;
-  await respuesta("/carrito/items", token, "POST", {
+  const resultado = await respuesta<Item[]>("/carrito/items", token, "POST", {
     id_producto: id,
     cantidad,
   });
+  DeviceEventEmitter.emit("carrito:actualizado");
+  return resultado;
 }
 export async function quitarProducto(id: number) {
-  await respuesta("/carrito/items/" + id, await sesionOperativa(), "DELETE");
+  const resultado = await respuesta<Item[]>("/carrito/items/" + id, await sesionOperativa(), "DELETE");
+  DeviceEventEmitter.emit("carrito:actualizado");
+  return resultado;
+}
+export async function guardarCantidad(id: number, cantidad: number) {
+  const resultado = await respuesta<Item[]>("/carrito/items", await sesionOperativa(), "POST", { id_producto: id, cantidad });
+  DeviceEventEmitter.emit("carrito:actualizado");
+  return resultado;
+}
+export async function vaciarCarrito() {
+  const resultado = await respuesta<Item[]>("/carrito", await sesionOperativa(), "DELETE");
+  DeviceEventEmitter.emit("carrito:actualizado");
+  return resultado;
+}
+export async function obtenerPedido(id: number) {
+  return respuesta<Pedido>(`/pedidos/${id}`, await sesionOperativa());
 }
 export async function confirmarRetiro(
   fecha: string,
   clave: string,
   tarjeta?: { numero: string; vencimiento: string; cvv: string },
 ) {
-  return respuesta<Pedido>(
+  const pedido = await respuesta<Pedido>(
     "/carrito/checkout",
     await sesionOperativa(),
     "POST",
@@ -114,6 +149,8 @@ export async function confirmarRetiro(
       tarjeta,
     },
   );
+  DeviceEventEmitter.emit("carrito:actualizado");
+  return pedido;
 }
 
 export interface Articulo {
@@ -192,6 +229,7 @@ export async function catalogoCompartido(admin: boolean) {
     stock_actual: number;
     stock_disponible: number;
     stock_minimo: number;
+    disponible?: boolean;
     descripcion: string | null;
     id_categoria: number;
     imagen_1: string | null;

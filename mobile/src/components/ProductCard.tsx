@@ -7,16 +7,19 @@ import { Producto } from "../types";
 type Props = {
   producto: Producto;
   ancho?: number;
-  favorito?: boolean;
-  onAlternarFavorito?: () => void;
   onPress?: () => void;
 };
 
 const disponibilidad = (producto: Producto) => {
-  if (producto.stock_actual <= 0) {
+  if (producto.disponible !== undefined) {
+    return producto.disponible
+      ? { texto: "Disponible", fondo: colors.badgeVerdeBg, textoColor: colors.badgeVerdeTexto }
+      : { texto: "Agotado", fondo: colors.badgeRojoBg, textoColor: colors.dangerTexto };
+  }
+  if ((producto.stock_actual ?? 0) <= 0) {
     return { texto: "Agotado", fondo: colors.badgeRojoBg, textoColor: colors.dangerTexto };
   }
-  if (producto.stock_actual <= producto.stock_minimo) {
+  if ((producto.stock_actual ?? 0) <= (producto.stock_minimo ?? 0)) {
     return { texto: "Stock bajo", fondo: colors.badgeRojoBg, textoColor: colors.dangerTexto };
   }
   return { texto: "Disponible", fondo: colors.badgeVerdeBg, textoColor: colors.badgeVerdeTexto };
@@ -25,8 +28,6 @@ const disponibilidad = (producto: Producto) => {
 export default function ProductCard({
   producto,
   ancho,
-  favorito = false,
-  onAlternarFavorito,
   onPress,
 }: Props) {
   const estado = disponibilidad(producto);
@@ -52,22 +53,6 @@ export default function ProductCard({
             {estado.texto}
           </Text>
         </View>
-        {!!onAlternarFavorito && (
-          <Pressable
-            onPress={onAlternarFavorito}
-            hitSlop={8}
-            style={styles.corazon}
-            accessibilityLabel={
-              favorito ? "Quitar de favoritos" : "Agregar a favoritos"
-            }
-          >
-            <Ionicons
-              name={favorito ? "heart" : "heart-outline"}
-              size={21}
-              color={favorito ? colors.danger : colors.gray}
-            />
-          </Pressable>
-        )}
         {producto.imagen_url ? (
           <Image
             source={{ uri: producto.imagen_url }}
@@ -121,18 +106,6 @@ const styles = StyleSheet.create({
   badgeTexto: {
     fontSize: tipografia.xs,
     fontWeight: "700",
-  },
-  corazon: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    zIndex: 1,
-    width: 30,
-    height: 30,
-    borderRadius: radio.pill,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.92)",
   },
   foto: {
     width: "100%",

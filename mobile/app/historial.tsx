@@ -8,25 +8,20 @@ import { colors } from "../src/constants/colors";
 import { espaciado, radio, tipografia } from "../src/constants/theme";
 import { useAuth } from "../src/contexts/AuthContext";
 import { useHistorial } from "../src/hooks/useHistorial";
-import type { TipoActividad } from "../src/types";
 import { formatearFecha } from "../src/utils/fechas";
 
-const ICONOS: Record<TipoActividad, keyof typeof Ionicons.glyphMap> = {
+const ICONOS: Record<string, keyof typeof Ionicons.glyphMap> = {
   registro: "person-add-outline",
   login: "log-in-outline",
   logout: "log-out-outline",
   perfil_actualizado: "create-outline",
-  favorito_agregado: "heart",
-  favorito_quitado: "heart-dislike-outline",
 };
 
-const ETIQUETAS: Record<TipoActividad, string> = {
+const ETIQUETAS: Record<string, string> = {
   registro: "Registro",
   login: "Inicio de sesión",
   logout: "Cierre de sesión",
   perfil_actualizado: "Perfil actualizado",
-  favorito_agregado: "Favorito agregado",
-  favorito_quitado: "Favorito quitado",
 };
 
 export default function HistorialScreen() {

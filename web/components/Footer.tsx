@@ -10,6 +10,8 @@ import { obtenerEstadisticasPublicas } from "@/services/estadisticasPublicasServ
 export default function Footer() {
   const [estadisticas, setEstadisticas] =
     useState<EstadisticasPublicas | null>(null);
+  const [cargandoEstadisticas, setCargandoEstadisticas] = useState(true);
+  const [errorEstadisticas, setErrorEstadisticas] = useState(false);
 
   useEffect(() => {
     let activo = true;
@@ -17,12 +19,15 @@ export default function Footer() {
     (async () => {
       try {
         const data = await obtenerEstadisticasPublicas();
-        if (activo) setEstadisticas(data);
+        if (activo) {
+          setEstadisticas(data);
+          setErrorEstadisticas(data === null);
+        }
       } catch (error) {
-        console.error(
-          "No se pudieron cargar las estadísticas:",
-          error
-        );
+        console.error("[Footer] Falló la carga opcional de estadísticas:", error);
+        if (activo) setErrorEstadisticas(true);
+      } finally {
+        if (activo) setCargandoEstadisticas(false);
       }
     })();
 
@@ -47,11 +52,15 @@ export default function Footer() {
             </p>
 
             <div className="flex items-center gap-4 mt-4">
-              <span className="text-2xl font-bold text-ferro-yellow">
+              <span
+                className="text-2xl font-bold text-ferro-yellow"
+                title={errorEstadisticas ? "Estadísticas temporalmente no disponibles" : undefined}
+                aria-live="polite"
+              >
                 {estadisticas ? estadisticas.total_productos : "—"}
               </span>
               <span className="text-sm text-gray-400">
-                Productos registrados
+                {cargandoEstadisticas ? "Cargando productos" : "Productos registrados"}
               </span>
             </div>
           </div>

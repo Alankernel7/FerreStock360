@@ -7,9 +7,9 @@
     "start": "node src/app.js",
     "dev": "node src/app.js",
     "seed:usuarios": "node scripts/crearUsuariosIniciales.js",
-    "test": "node --test tests/checkout.rules.test.js tests/reservas.rules.test.js tests/retiros.rules.test.js",
+    "test": "node --test tests/auth.public-register.test.js tests/auth.routes-public-fallthrough.test.js tests/productos.access.test.js tests/legacy.adapters.test.js tests/checkout.rules.test.js tests/reservas.rules.test.js tests/retiros.rules.test.js tests/firestore.api.integration.test.js",
     "test:checkout": "node --test tests/checkout.rules.test.js",
-    "test:carrito": "node --test tests/carrito.checkout.integration.test.js",
+    "test:firestore": "node --test tests/firestore.api.integration.test.js",
     "test:productos:integration": "node --test tests/productos.imagenes.test.js"
   },
   "keywords": [],
@@ -23,7 +23,6 @@
     "express": "^5.2.1",
     "firebase-admin": "^14.5.0",
     "jsonwebtoken": "^9.0.3",
-    "mssql": "^12.7.2",
     "multer": "^2.5.0"
   }
 }

@@ -9,6 +9,7 @@ export interface Producto {
   stock_actual: number;
   stock_disponible?: number;
   stock_minimo: number;
+  disponible?: boolean;
   id_categoria: number;
   estado: boolean;
   fecha_creacion: string;

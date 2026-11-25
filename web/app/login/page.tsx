@@ -5,7 +5,6 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { accesoFirebase, firebaseDisponible, recuperarAcceso } from "@/services/firebaseClient";
-import { iniciarSesion } from "@/services/authService";
 
 import type { EstadisticasPublicas } from "@/types/estadisticasPublicas";
 
@@ -26,27 +25,34 @@ export default function LoginPage() {
 
   const [estadisticas, setEstadisticas] =
   useState<EstadisticasPublicas | null>(null);
+  const [cargandoEstadisticas, setCargandoEstadisticas] = useState(true);
+  const [errorEstadisticas, setErrorEstadisticas] = useState(false);
 
   useEffect(() => {
+    let activo = true;
     const cargarEstadisticas = async () => {
       try {
         const data =
           await obtenerEstadisticasPublicas();
 
-        setEstadisticas(data);
+        if (activo) {
+          setEstadisticas(data);
+          setErrorEstadisticas(data === null);
+        }
       } catch (error) {
-        console.error(
-          "No se pudieron cargar las estadísticas:",
-          error
-        );
+        console.error("[login] Falló la carga opcional de estadísticas:", error);
+        if (activo) setErrorEstadisticas(true);
+      } finally {
+        if (activo) setCargandoEstadisticas(false);
       }
     };
 
-    cargarEstadisticas();
+    void cargarEstadisticas();
+    return () => { activo = false; };
   }, []);
 
   const [aviso, setAviso] = useState("");
-  const integrado = firebaseDisponible && process.env.NEXT_PUBLIC_FIREBASE_AUTH_ENABLED === "true";
+  const integrado = firebaseDisponible;
   const handleSubmit = async (event?: FormEvent<HTMLFormElement>, google = false) => {
     event?.preventDefault();
     setAviso("");
@@ -66,9 +72,8 @@ export default function LoginPage() {
     try {
       setCargando(true);
 
-      const data = integrado
-        ? await accesoFirebase(email.trim(), password, recordarme, google)
-        : await iniciarSesion(email.trim(), password);
+      if (!integrado) throw new Error("Configura Firebase Authentication para esta web.");
+      const data = await accesoFirebase(email.trim(), password, recordarme, google);
 
       const almacenamiento = recordarme
         ? localStorage
@@ -136,19 +141,16 @@ export default function LoginPage() {
             FerreStock <span className="text-ferro-yellow">360</span>
           </h1>
           <p className="text-gray-400 text-lg">Tu ferretería, siempre contigo</p>
-          <div className="flex gap-8 mt-12">
+          <div className="grid grid-cols-2 gap-8 mt-12">
             <div className="text-center">
-              <p className="text-3xl font-bold text-ferro-yellow">{estadisticas  ? estadisticas.total_productos : "—"}+</p>
+              <p className="text-3xl font-bold text-ferro-yellow" aria-live="polite" title={errorEstadisticas ? "Estadísticas temporalmente no disponibles" : undefined}>{estadisticas ? estadisticas.total_productos : "—"}</p>
               <p className="text-sm text-gray-400">Productos</p>
             </div>
             <div className="text-center">
-              <p className="text-3xl font-bold text-ferro-yellow">{estadisticas ? estadisticas.total_categorias : "—"}+</p>
+              <p className="text-3xl font-bold text-ferro-yellow" aria-live="polite" title={errorEstadisticas ? "Estadísticas temporalmente no disponibles" : undefined}>{estadisticas ? estadisticas.total_categorias : "—"}</p>
               <p className="text-sm text-gray-400">Categorías</p>
             </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold text-ferro-yellow">99%</p>
-              <p className="text-sm text-gray-400">Confianza</p>
-            </div>
+            {cargandoEstadisticas && <p className="sr-only" aria-live="polite">Cargando estadísticas públicas.</p>}
           </div>
         </div>
       </div>

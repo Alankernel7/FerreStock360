@@ -13,8 +13,8 @@ const test = (...args) => {
   if (!basePruebasHabilitada) {
     const [nombre, opciones, ejecutar] = args;
     return typeof opciones === "function"
-      ? testBase(nombre, { skip: "Configura una base desechable TEST_DB_* para pruebas con escritura" }, opciones)
-      : testBase(nombre, { ...opciones, skip: "Configura una base desechable TEST_DB_* para pruebas con escritura" }, ejecutar);
+      ? testBase(nombre, { skip: "Configura FIRESTORE_EMULATOR_HOST y TEST_FIREBASE_PROJECT_ID para pruebas con escritura" }, opciones)
+      : testBase(nombre, { ...opciones, skip: "Configura FIRESTORE_EMULATOR_HOST y TEST_FIREBASE_PROJECT_ID para pruebas con escritura" }, ejecutar);
   }
   return testBase(...args);
 };

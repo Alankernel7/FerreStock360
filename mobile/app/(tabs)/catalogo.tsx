@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Alert,
   FlatList,
   Modal,
   Pressable,
@@ -14,6 +13,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AppFooter from "../../src/components/AppFooter";
 import AppHeader from "../../src/components/AppHeader";
+import CartAccessButton from "../../src/components/CartAccessButton";
 import Banner from "../../src/components/Banner";
 import CategoryChip from "../../src/components/CategoryChip";
 import EstadoVacio from "../../src/components/EstadoVacio";
@@ -27,10 +27,8 @@ import {
   tipografia,
 } from "../../src/constants/theme";
 import { useAuth } from "../../src/contexts/AuthContext";
-import { useFavoritos } from "../../src/hooks/useFavoritos";
 import { useProductos } from "../../src/hooks/useProductos";
 import { Producto } from "../../src/types";
-import { mensajeErrorFirebase } from "../../src/utils/firebaseErrors";
 
 type Orden = "default" | "precioAsc" | "precioDesc";
 
@@ -55,7 +53,6 @@ export default function CatalogoScreen() {
     cargando,
     error,
   } = useProductos();
-  const { idsFavoritos, alternar } = useFavoritos(usuario?.uid ?? null);
 
   const [busqueda, setBusqueda] = useState("");
   const [categoria, setCategoria] = useState<number | null>(
@@ -95,17 +92,6 @@ export default function CatalogoScreen() {
   }, [todosProductos, busqueda, categoria, orden]);
 
   const hayFiltro = busqueda.trim() !== "" || categoria !== null;
-
-  const alternarFavorito = async (producto: Producto) => {
-    const nombreCategoria =
-      categorias.find((c) => c.id_categoria === producto.id_categoria)?.nombre ??
-      "";
-    try {
-      await alternar(producto, nombreCategoria);
-    } catch (e) {
-      Alert.alert("Favoritos", mensajeErrorFirebase(e));
-    }
-  };
 
   const cabecera = (
     <View style={styles.zonaControles}>
@@ -198,6 +184,7 @@ export default function CatalogoScreen() {
   return (
     <View style={styles.pantalla}>
       <AppHeader>
+        <CartAccessButton />
         <Pressable
           onPress={() => router.push(usuario ? "/perfil" : "/login")}
           hitSlop={8}
@@ -217,11 +204,7 @@ export default function CatalogoScreen() {
         renderItem={({ item }) => (
           <ProductCard
             producto={item}
-            favorito={idsFavoritos.has(String(item.id_producto))}
             onPress={() => setProductoSeleccionado(item)}
-            onAlternarFavorito={
-              usuario ? () => alternarFavorito(item) : undefined
-            }
           />
         )}
         ListHeaderComponent={cabecera}
@@ -290,16 +273,6 @@ export default function CatalogoScreen() {
                 (c) => c.id_categoria === productoSeleccionado.id_categoria
               )?.nombre ?? ""
             : ""
-        }
-        favorito={
-          productoSeleccionado
-            ? idsFavoritos.has(String(productoSeleccionado.id_producto))
-            : false
-        }
-        onAlternarFavorito={
-          usuario && productoSeleccionado
-            ? () => alternarFavorito(productoSeleccionado)
-            : undefined
         }
         onCerrar={() => setProductoSeleccionado(null)}
       />

@@ -40,14 +40,14 @@ const patchTodasLeidas = async (_req, res) => {
 };
 
 const clienteRequerido = (req, res) => {
-  if (req.usuario?.rol === "cliente" && Number.isSafeInteger(Number(req.usuario.id_usuario))) return true;
+  if (["cliente", "empleado"].includes(req.usuario?.rol) && Number.isSafeInteger(Number(req.usuario.id_usuario))) return true;
   res.status(403).json({ ok: false, message: "Solo un cliente autenticado puede consultar sus notificaciones." });
   return false;
 };
 
 const getNotificacionesCliente = async (req, res) => {
   if (!clienteRequerido(req, res)) return;
-  try { return res.json({ ok: true, data: await listarNotificacionesCliente(Number(req.usuario.id_usuario)) }); }
+  try { return res.json({ ok: true, data: await listarNotificacionesCliente(Number(req.usuario.id_usuario), req.usuario.uid) }); }
   catch (error) { console.error("Error al consultar notificaciones del cliente:", error.message); return res.status(500).json({ ok: false, message: "No se pudieron consultar las notificaciones" }); }
 };
 
@@ -56,7 +56,7 @@ const patchNotificacionClienteLeida = async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ ok: false, message: "El identificador de notificación no es válido" });
   try {
-    const data = await marcarNotificacionClienteLeida(Number(req.usuario.id_usuario), id);
+    const data = await marcarNotificacionClienteLeida(Number(req.usuario.id_usuario), id, req.usuario.uid);
     if (!data) return res.status(404).json({ ok: false, message: "Notificación no encontrada" });
     return res.json({ ok: true, message: "Notificación marcada como leída" });
   } catch (error) { console.error("Error al actualizar notificación:", error.message); return res.status(500).json({ ok: false, message: "No se pudo actualizar la notificación" }); }
@@ -64,7 +64,7 @@ const patchNotificacionClienteLeida = async (req, res) => {
 
 const patchTodasNotificacionesClienteLeidas = async (req, res) => {
   if (!clienteRequerido(req, res)) return;
-  try { await marcarTodasClienteLeidas(Number(req.usuario.id_usuario)); return res.json({ ok: true, message: "Notificaciones marcadas como leídas" }); }
+  try { await marcarTodasClienteLeidas(Number(req.usuario.id_usuario), req.usuario.uid); return res.json({ ok: true, message: "Notificaciones marcadas como leídas" }); }
   catch (error) { console.error("Error al marcar notificaciones:", error.message); return res.status(500).json({ ok: false, message: "No se pudieron actualizar las notificaciones" }); }
 };
 

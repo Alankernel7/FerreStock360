@@ -1,4 +1,4 @@
-export type Rol = "admin" | "empleado" | "usuario";
+export type Rol = "admin" | "empleado" | "usuario" | "cliente" | (string & {});
 
 export type EstadoUsuario = "activo" | "inactivo";
 
@@ -29,8 +29,9 @@ export interface Producto {
   codigo: string;
   precio: number;
   imagen_url: string | null;
-  stock_actual: number;
-  stock_minimo: number;
+  stock_actual?: number;
+  stock_minimo?: number;
+  disponible?: boolean;
   id_categoria: number;
   estado: boolean;
   fecha_creacion: string;
@@ -42,32 +43,12 @@ export interface Categoria {
   descripcion: string | null;
 }
 
-/**
- * Documento de la colección `favorites`: snapshot del producto favorito
- * asociado al usuario autenticado.
- */
-export interface Favorito {
-  /** Id del documento Firestore (`{uid}_{producto_id}`). */
-  id: string;
-  uid: string;
-  producto_id: ProductoId;
-  nombre: string;
-  precio: number;
-  imagen_url: string | null;
-  stock_actual: number;
-  stock_minimo: number;
-  categoria: string;
-  /** Fecha en formato ISO 8601. */
-  creado_en: string;
-}
-
 export type TipoActividad =
   | "registro"
   | "login"
   | "logout"
   | "perfil_actualizado"
-  | "favorito_agregado"
-  | "favorito_quitado";
+  | (string & {});
 
 /**
  * Documento de la colección `activity_history`.

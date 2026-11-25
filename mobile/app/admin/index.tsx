@@ -133,8 +133,8 @@ export default function AdminDashboardScreen() {
           <View>
             <Text style={styles.seccionTitulo}>Disponibilidad de productos activos</Text>
             {activos === 0 ? <Text>Sin productos activos.</Text> : [
-              { nombre: "En el mínimo o por debajo", cantidad: productos.filter(p => p.estado && p.stock_actual <= p.stock_minimo).length, color: colors.yellowDark },
-              { nombre: "Sobre el mínimo", cantidad: productos.filter(p => p.estado && p.stock_actual > p.stock_minimo).length, color: colors.badgeVerdeTexto },
+              { nombre: "En el mínimo o por debajo", cantidad: productos.filter(p => p.estado && (p.stock_actual ?? 0) <= (p.stock_minimo ?? 0)).length, color: colors.yellowDark },
+              { nombre: "Sobre el mínimo", cantidad: productos.filter(p => p.estado && (p.stock_actual ?? 0) > (p.stock_minimo ?? 0)).length, color: colors.badgeVerdeTexto },
             ].map(({ nombre, cantidad, color }) => (
               <View key={nombre} style={{ marginBottom: 10 }}>
                 <Text>{nombre} · {cantidad}</Text>

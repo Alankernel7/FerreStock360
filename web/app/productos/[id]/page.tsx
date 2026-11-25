@@ -244,21 +244,21 @@ export default function DetalleProductoPage() {
                   <div className="mt-4">
                     <span
                       className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium ${
-                        (producto.stock_disponible ?? producto.stock_actual) > 0
+                        (producto.disponible ?? ((producto.stock_disponible ?? producto.stock_actual ?? 0) > 0))
                           ? "bg-green-50 text-green-700"
                           : "bg-red-50 text-red-700"
                       }`}
                     >
                       <span
                         className={`w-2 h-2 rounded-full ${
-                          (producto.stock_disponible ?? producto.stock_actual) > 0
+                          (producto.disponible ?? ((producto.stock_disponible ?? producto.stock_actual ?? 0) > 0))
                             ? "bg-green-600"
                             : "bg-red-600"
                         }`}
                         aria-hidden="true"
                       />
-                      {(producto.stock_disponible ?? producto.stock_actual) > 0
-                        ? `Disponible: ${producto.stock_disponible ?? producto.stock_actual} unidad(es)`
+                      {(producto.disponible ?? ((producto.stock_disponible ?? producto.stock_actual ?? 0) > 0))
+                        ? "Disponible"
                         : "Agotado"}
                     </span>
                   </div>
@@ -277,7 +277,7 @@ export default function DetalleProductoPage() {
                   <div className="mt-6">
                     <button
                       type="button"
-                      disabled={agregandoCarrito || !producto.estado || (producto.stock_disponible ?? producto.stock_actual) < 1}
+                      disabled={agregandoCarrito || !producto.estado || !(producto.disponible ?? ((producto.stock_disponible ?? producto.stock_actual ?? 0) > 0))}
                       aria-busy={agregandoCarrito}
                       onClick={async () => {
                         if (agregandoCarrito) return;

@@ -1,67 +1,88 @@
-// Servicio del dashboard.
-// Obtiene estadísticas generales y datos relevantes del inventario.
-
-const { getPool } = require("../config/database");
+const {
+  COLECCIONES,
+  db,
+  aISO,
+  aFecha,
+  aNumero,
+  aBooleano,
+  idNumericoDocumento,
+} = require("../config/firestore");
 
 const obtenerDashboard = async () => {
-  const pool = await getPool();
+  const [productos, categorias, movimientos, usuarios] = await Promise.all([
+    db().collection(COLECCIONES.productos).get(),
+    db().collection(COLECCIONES.categorias).get(),
+    db().collection(COLECCIONES.movimientos).get(),
+    db().collection(COLECCIONES.usuarios).get(),
+  ]);
 
-  // Resumen general
-  const resumenResult = await pool.request().query(`
-    SELECT
-      (SELECT COUNT(*)
-       FROM productos
-       WHERE estado = 1) AS total_productos,
+  const productosPorId = new Map();
+  const usuariosPorId = new Map();
 
-      (SELECT COUNT(*)
-       FROM categorias) AS total_categorias,
+  for (const documento of productos.docs) {
+    productosPorId.set(idNumericoDocumento(documento, "id_producto"), documento.data());
+  }
+  for (const documento of usuarios.docs) {
+    usuariosPorId.set(idNumericoDocumento(documento, "id_usuario"), documento.data());
+  }
 
-      (SELECT COUNT(*)
-       FROM productos
-       WHERE estado = 1
-         AND stock_actual <= stock_minimo) AS productos_stock_bajo,
+  const activos = productos.docs
+    .filter((documento) => aBooleano(documento.data().estado, true))
+    .map((documento) => ({
+      id_producto: idNumericoDocumento(documento, "id_producto"),
+      ...documento.data(),
+    }));
 
-      (SELECT COUNT(*)
-       FROM movimientos_inventario) AS total_movimientos
-  `);
+  const stockBajo = activos
+    .filter((producto) => aNumero(producto.stock_actual) <= aNumero(producto.stock_minimo))
+    .sort((a, b) => aNumero(a.stock_actual) - aNumero(b.stock_actual))
+    .slice(0, 5)
+    .map((producto) => ({
+      id_producto: producto.id_producto,
+      codigo: producto.codigo || "",
+      nombre: producto.nombre || "",
+      stock_actual: aNumero(producto.stock_actual),
+      stock_minimo: aNumero(producto.stock_minimo),
+      estado_inventario: aNumero(producto.stock_actual) === 0 ? "agotado" : "bajo",
+    }));
 
-  // Alertas actuales: incluye productos agotados y productos bajo mínimo.
-  const stockBajoResult = await pool.request().query(`
-    SELECT TOP 5
-      id_producto,
-      codigo,
-      nombre,
-      stock_actual,
-      stock_minimo,
-      CASE WHEN stock_actual = 0 THEN 'agotado' ELSE 'bajo' END AS estado_inventario
-    FROM productos
-    WHERE estado = 1
-      AND stock_actual <= stock_minimo
-    ORDER BY stock_actual ASC
-  `);
-
-  // Movimientos más recientes
-  const movimientosResult = await pool.request().query(`
-    SELECT TOP 5
-      mi.id_movimiento,
-      p.nombre AS producto,
-      mi.tipo_movimiento,
-      mi.cantidad,
-      mi.motivo,
-      mi.fecha_movimiento,
-      u.nombre AS usuario
-    FROM movimientos_inventario mi
-    INNER JOIN productos p
-      ON mi.id_producto = p.id_producto
-    INNER JOIN usuarios u
-      ON mi.id_usuario = u.id_usuario
-    ORDER BY mi.fecha_movimiento DESC
-  `);
+  const recientes = movimientos.docs
+    .map((documento) => {
+      const data = documento.data();
+      const producto = productosPorId.get(aNumero(data.id_producto));
+      const usuario = usuariosPorId.get(aNumero(data.id_usuario));
+      return {
+        id_movimiento:
+          aNumero(data.id_movimiento) ||
+          idNumericoDocumento(documento, "id_movimiento"),
+        producto: producto?.nombre ?? null,
+        tipo_movimiento: data.tipo_movimiento,
+        cantidad: aNumero(data.cantidad),
+        motivo: data.motivo ?? null,
+        fecha_movimiento: aISO(data.fecha_movimiento),
+        fecha: aFecha(data.fecha_movimiento),
+        usuario: usuario?.nombre ?? null,
+      };
+    })
+    .sort((a, b) => {
+      const fechaA = a.fecha ? a.fecha.getTime() : 0;
+      const fechaB = b.fecha ? b.fecha.getTime() : 0;
+      return fechaB - fechaA;
+    })
+    .slice(0, 5)
+    .map(({ fecha, ...resto }) => resto);
 
   return {
-    resumen: resumenResult.recordset[0],
-    stock_bajo: stockBajoResult.recordset,
-    movimientos_recientes: movimientosResult.recordset,
+    resumen: {
+      total_productos: activos.length,
+      total_categorias: categorias.size,
+      productos_stock_bajo: activos.filter(
+        (producto) => aNumero(producto.stock_actual) <= aNumero(producto.stock_minimo)
+      ).length,
+      total_movimientos: movimientos.size,
+    },
+    stock_bajo: stockBajo,
+    movimientos_recientes: recientes,
   };
 };
 

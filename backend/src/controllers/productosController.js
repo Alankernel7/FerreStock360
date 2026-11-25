@@ -246,14 +246,33 @@ const eliminarImagenesSinUso = async (rutas, rutasConservadas) => {
 // GET /api/productos
 // Acepta ?estado=activo para devolver solo productos activos (catálogo público).
 // Sin el parámetro devuelve todos (módulo administrativo: activos e inactivos).
+const productoPublico = (producto) => {
+  const resultado = {
+    ...producto,
+    disponible: Number(producto.stock_disponible ?? producto.stock_actual) > 0,
+  };
+  delete resultado.stock_actual;
+  delete resultado.stock_disponible;
+  delete resultado.stock_minimo;
+  return resultado;
+};
+
 const getProductos = async (req, res) => {
   try {
-    const soloActivos =
-      typeof req.query.estado === "string" &&
-      req.query.estado.trim().toLowerCase() === "activo";
+    const estado = String(req.query.estado || "").trim().toLowerCase();
+    const solicitaInactivos = ["inactivo", "todos", "all"].includes(estado) ||
+      req.query.incluirInactivos === "true" || req.query.admin === "true";
+    const esAdmin = req.usuario?.rol === "admin";
 
-    const productos = await obtenerProductos({ soloActivos });
-    res.json(productos);
+    if (solicitaInactivos && !esAdmin) {
+      return res.status(403).json({ ok: false, message: "Se requieren permisos de administrador." });
+    }
+
+    const productos = await obtenerProductos({ soloActivos: !esAdmin || estado === "activo" });
+    const filtrados = estado === "inactivo"
+      ? productos.filter((producto) => !producto.estado)
+      : productos;
+    res.json(esAdmin ? filtrados : filtrados.map(productoPublico));
   } catch (err) {
     console.error("Error al obtener productos:", err.message);
     res.status(500).json({
@@ -277,9 +296,7 @@ const getProductoById = async (req, res) => {
       });
     }
 
-    const soloActivos =
-      typeof req.query.estado === "string" &&
-      req.query.estado.trim().toLowerCase() === "activo";
+    const soloActivos = String(req.query.estado || "").trim().toLowerCase() === "activo";
 
     const esAdmin = Boolean(req.usuario && req.usuario.rol === "admin");
 
@@ -296,7 +313,7 @@ const getProductoById = async (req, res) => {
       });
     }
 
-    res.json(producto);
+    res.json(esAdmin ? producto : productoPublico(producto));
   } catch (err) {
     console.error("Error al obtener producto:", err.message);
 

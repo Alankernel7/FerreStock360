@@ -1,208 +1,282 @@
-// Servicio de productos.
-// Consulta, registra, actualiza y elimina productos en SQL Server.
-
-const { getPool, sql } = require("../config/database");
+const {
+  COLECCIONES,
+  db,
+  aISO,
+  aNumero,
+  aBooleano,
+  normalizarTexto,
+  siguienteId,
+  resolverDocumento,
+  resolverDocumentoEnTransaccion,
+  leerReservasComprometidas,
+  leerReservasComprometidasEnTransaccion,
+  sumarReservasPorProducto,
+  reclamarClaveUnica,
+  liberarClaveUnica,
+  referenciaClaveUnica,
+  idNumericoDocumento,
+} = require("../config/firestore");
 const { limpiarReservasVencidas } = require("./reservasService");
 
-// Consulta los productos.
-// Con soloActivos = true devuelve únicamente los productos activos (estado = 1),
-// ordenados del más reciente al más antiguo según fecha_creacion.
-// Sin ese flag devuelve todos (uso administrativo: activos e inactivos).
+const mapearProducto = (documento, reservasPorProducto = new Map()) => {
+  const data = documento.data() || {};
+  const idProducto = idNumericoDocumento(documento, "id_producto");
+  const stockActual = aNumero(data.stock_actual);
+  const reservadas = aNumero(reservasPorProducto.get(idProducto));
+  const imagen1 = data.imagen_1 ?? data.imagen_url ?? null;
+  const imagen2 = data.imagen_2 ?? null;
+
+  return {
+    id_producto: idProducto,
+    nombre: data.nombre || "",
+    descripcion: data.descripcion ?? null,
+    codigo: data.codigo || "",
+    precio: aNumero(data.precio),
+    imagen_1: imagen1,
+    imagen_2: imagen2,
+    imagen_url: imagen1 || imagen2 || null,
+    stock_actual: stockActual,
+    stock_disponible: Math.max(0, stockActual - reservadas),
+    stock_minimo: aNumero(data.stock_minimo, 5),
+    id_categoria: aNumero(data.id_categoria ?? data.categoria_id),
+    estado: aBooleano(data.estado, true),
+    fecha_creacion: aISO(data.fecha_creacion),
+  };
+};
+
 const obtenerProductos = async ({ soloActivos = false } = {}) => {
-  const pool = await getPool();
-  await limpiarReservasVencidas(pool);
-  const consulta = `SELECT p.*,
-      CASE WHEN p.stock_actual > COALESCE(r.unidades_reservadas, 0)
-           THEN p.stock_actual - COALESCE(r.unidades_reservadas, 0) ELSE 0 END AS stock_disponible
-    FROM dbo.productos p
-    OUTER APPLY (
-      SELECT SUM(ri.cantidad) AS unidades_reservadas
-      FROM dbo.reservas_inventario ri
-      WHERE ri.id_producto = p.id_producto AND (
-        (ri.estado = N'activa' AND ri.fecha_expiracion > SYSUTCDATETIME()) OR ri.estado = N'confirmada'
-      )
-    ) r${soloActivos ? " WHERE p.estado = 1" : ""}
-    ${soloActivos ? "ORDER BY p.fecha_creacion DESC" : ""}`;
-  const result = await pool.request().query(consulta);
-  return result.recordset;
-};
+  await limpiarReservasVencidas();
+  const [productos, reservas] = await Promise.all([
+    db().collection(COLECCIONES.productos).get(),
+    leerReservasComprometidas(),
+  ]);
+  const reservasPorProducto = sumarReservasPorProducto(reservas);
 
-// Consulta un producto por ID
-const obtenerProductoPorId = async (id) => {
-  const pool = await getPool();
-  await limpiarReservasVencidas(pool);
-  const result = await pool
-    .request()
-    .input("id_producto", sql.Int, id)
-    .query(`SELECT p.*,
-      CASE WHEN p.stock_actual > COALESCE(r.unidades_reservadas, 0)
-           THEN p.stock_actual - COALESCE(r.unidades_reservadas, 0) ELSE 0 END AS stock_disponible
-      FROM dbo.productos p
-      OUTER APPLY (
-        SELECT SUM(ri.cantidad) AS unidades_reservadas
-        FROM dbo.reservas_inventario ri
-        WHERE ri.id_producto = p.id_producto AND (
-          (ri.estado = N'activa' AND ri.fecha_expiracion > SYSUTCDATETIME()) OR ri.estado = N'confirmada'
-        )
-      ) r
-      WHERE p.id_producto = @id_producto`);
-  return result.recordset[0];
-};
+  const lista = productos.docs
+    .map((documento) => mapearProducto(documento, reservasPorProducto))
+    .filter((producto) => (soloActivos ? producto.estado : true));
 
-// Comprueba si ya existe un producto con ese código.
-// Al editar se puede excluir el propio producto para permitir conservar su código.
-const existeProductoPorCodigo = async (codigo, excluirId = null) => {
-  const pool = await getPool();
-  const request = pool.request().input("codigo", sql.NVarChar(50), codigo);
-
-  let consulta = "select id_producto from productos where codigo = @codigo";
-
-  if (excluirId) {
-    request.input("id_producto", sql.Int, excluirId);
-    consulta += " and id_producto <> @id_producto";
+  if (soloActivos) {
+    lista.sort((a, b) => {
+      const fechaA = a.fecha_creacion ? Date.parse(a.fecha_creacion) : 0;
+      const fechaB = b.fecha_creacion ? Date.parse(b.fecha_creacion) : 0;
+      return fechaB - fechaA;
+    });
   }
 
-  const result = await request.query(consulta);
-  return result.recordset.length > 0;
+  return lista;
 };
 
-// Comprueba si existe una categoría válida para la relación del producto.
-const existeCategoriaPorId = async (id) => {
-  const pool = await getPool();
-  const result = await pool
-    .request()
-    .input("id_categoria", sql.Int, id)
-    .query("select id_categoria from categorias where id_categoria = @id_categoria");
-  return result.recordset.length > 0;
+const obtenerProductoPorId = async (id) => {
+  await limpiarReservasVencidas();
+  const documento = await resolverDocumento(
+    COLECCIONES.productos,
+    "id_producto",
+    id
+  );
+  if (!documento) return undefined;
+
+  const reservas = await leerReservasComprometidas();
+  return mapearProducto(documento, sumarReservasPorProducto(reservas));
 };
 
-// Cuenta los movimientos de inventario asociados a un producto.
+const existeProductoPorCodigo = async (codigo, excluirId = null) => {
+  const normalizado = normalizarTexto(codigo);
+  const snapshot = await db()
+    .collection(COLECCIONES.productos)
+    .where("codigo_normalizado", "==", normalizado)
+    .get();
+
+  const coincide = (documento) => {
+    if (excluirId === null || excluirId === undefined) return true;
+    return idNumericoDocumento(documento, "id_producto") !== Number(excluirId);
+  };
+
+  if (snapshot.docs.some(coincide)) return true;
+
+  const todos = await db().collection(COLECCIONES.productos).get();
+  return todos.docs.some(
+    (documento) =>
+      normalizarTexto(documento.data().codigo) === normalizado && coincide(documento)
+  );
+};
+
+const existeCategoriaPorId = async (id) =>
+  Boolean(
+    await resolverDocumento(COLECCIONES.categorias, "id_categoria", id)
+  );
+
 const contarMovimientosPorProducto = async (id) => {
-  const pool = await getPool();
-  const result = await pool
-    .request()
-    .input("id_producto", sql.Int, id)
-    .query("select count(*) as total from movimientos_inventario where id_producto = @id_producto");
-  return result.recordset[0].total;
+  const snapshot = await db()
+    .collection(COLECCIONES.movimientos)
+    .where("id_producto", "==", Number(id))
+    .count()
+    .get();
+  return snapshot.data().count;
 };
 
-// Cuenta las alertas de stock asociadas a un producto.
 const contarAlertasPorProducto = async (id) => {
-  const pool = await getPool();
-  const result = await pool
-    .request()
-    .input("id_producto", sql.Int, id)
-    .query("select count(*) as total from alertas_stock where id_producto = @id_producto");
-  return result.recordset[0].total;
+  const snapshot = await db()
+    .collection(COLECCIONES.alertas)
+    .where("id_producto", "==", Number(id))
+    .count()
+    .get();
+  return snapshot.data().count;
 };
 
-// Comprueba si una ruta de imagen sigue referenciada por algún producto.
-// Se consulta siempre después de guardar los cambios en SQL Server para no
-// eliminar un archivo que otro registro todavía utiliza.
 const estaImagenEnUso = async (ruta) => {
   if (!ruta) return false;
 
-  const pool = await getPool();
-  const result = await pool
-    .request()
-    .input("ruta", sql.NVarChar(500), ruta)
-    .query(`
-      select count(*) as total
-      from productos
-      where imagen_1 = @ruta or imagen_2 = @ruta
-    `);
-  return result.recordset[0].total > 0;
+  const [porImagen1, porImagen2, porImagenUrl] = await Promise.all([
+    db().collection(COLECCIONES.productos).where("imagen_1", "==", ruta).get(),
+    db().collection(COLECCIONES.productos).where("imagen_2", "==", ruta).get(),
+    db().collection(COLECCIONES.productos).where("imagen_url", "==", ruta).get(),
+  ]);
+
+  return new Set(
+    [...porImagen1.docs, ...porImagen2.docs, ...porImagenUrl.docs].map(
+      (documento) => documento.id
+    )
+  ).size > 0;
 };
 
-// Inserta un nuevo producto utilizando parámetros SQL
+const documentoProducto = (id, datos) => ({
+  id_producto: id,
+  nombre: datos.nombre,
+  descripcion: datos.descripcion || null,
+  codigo: datos.codigo,
+  codigo_normalizado: normalizarTexto(datos.codigo),
+  precio: datos.precio,
+  imagen_1: datos.imagen_1 || null,
+  imagen_2: datos.imagen_2 || null,
+  imagen_url: datos.imagen_1 || datos.imagen_2 || null,
+  stock_actual: datos.stock_actual,
+  stock_minimo: datos.stock_minimo,
+  id_categoria: Number(datos.id_categoria),
+  // Alias que usa la app móvil.
+  categoria_id: Number(datos.id_categoria),
+  estado: datos.estado,
+  fecha_creacion: new Date(),
+  actualizado_en: new Date(),
+});
+
 const crearProducto = async (datos) => {
-  const pool = await getPool();
-  const result = await pool
-    .request()
-    .input("nombre", sql.NVarChar(150), datos.nombre)
-    .input("descripcion", sql.NVarChar(500), datos.descripcion)
-    .input("codigo", sql.NVarChar(50), datos.codigo)
-    .input("precio", sql.Decimal(10, 2), datos.precio)
-    .input("imagen_1", sql.VarChar(sql.MAX), datos.imagen_1)
-    .input("imagen_2", sql.VarChar(sql.MAX), datos.imagen_2)
-    .input("stock_actual", sql.Int, datos.stock_actual)
-    .input("stock_minimo", sql.Int, datos.stock_minimo)
-    .input("id_categoria", sql.Int, datos.id_categoria)
-    .input("estado", sql.Bit, datos.estado)
-    .query(`
-      insert into productos (nombre, descripcion, codigo, precio, imagen_1, imagen_2, stock_actual, stock_minimo, id_categoria, estado)
-      output inserted.*
-      values (@nombre, @descripcion, @codigo, @precio, @imagen_1, @imagen_2, @stock_actual, @stock_minimo, @id_categoria, @estado)
-    `);
-  return result.recordset[0];
+  const normalizado = normalizarTexto(datos.codigo);
+  const idProducto = await siguienteId(
+    "productos",
+    COLECCIONES.productos,
+    "id_producto"
+  );
+
+  await db().runTransaction(async (tx) => {
+    await reclamarClaveUnica(tx, `producto_codigo:${normalizado}`, idProducto);
+    tx.set(
+      db().collection(COLECCIONES.productos).doc(String(idProducto)),
+      documentoProducto(idProducto, datos)
+    );
+  });
+
+  return mapearProducto(
+    await resolverDocumento(COLECCIONES.productos, "id_producto", idProducto)
+  );
 };
 
-// Actualiza un producto existente utilizando parámetros SQL
 const actualizarProducto = async (id, datos) => {
-  const pool = await getPool();
-  const tx = new sql.Transaction(pool);
-  await tx.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
-  try {
-    await limpiarReservasVencidas(tx);
-    const producto = await new sql.Request(tx).input("id_producto", sql.Int, id)
-      .query("SELECT id_producto FROM dbo.productos WITH (UPDLOCK, HOLDLOCK) WHERE id_producto = @id_producto");
-    if (!producto.recordset.length) {
-      const error = new Error("El producto no existe"); error.status = 404; throw error;
+  const normalizado = normalizarTexto(datos.codigo);
+  let actualizado = null;
+
+  await db().runTransaction(async (tx) => {
+    const documento = await resolverDocumentoEnTransaccion(
+      tx,
+      COLECCIONES.productos,
+      "id_producto",
+      id
+    );
+    if (!documento) {
+      const error = new Error("El producto no existe");
+      error.status = 404;
+      throw error;
     }
-    const reservas = await new sql.Request(tx).input("id_producto", sql.Int, id).query(`
-      SELECT COALESCE(SUM(cantidad), 0) AS total
-      FROM dbo.reservas_inventario WITH (UPDLOCK, HOLDLOCK)
-      WHERE id_producto = @id_producto AND (
-        (estado = N'activa' AND fecha_expiracion > SYSUTCDATETIME()) OR estado = N'confirmada'
-      )
-    `);
-    if (datos.stock_actual < reservas.recordset[0].total) {
-      const error = new Error(`El stock físico no puede quedar por debajo de las ${reservas.recordset[0].total} unidades reservadas`);
-      error.status = 409; throw error;
+
+    const idReal = idNumericoDocumento(documento, "id_producto");
+    const reservas = await leerReservasComprometidasEnTransaccion(tx);
+    const reservadas = sumarReservasPorProducto(reservas).get(idReal) || 0;
+
+    if (datos.stock_actual < reservadas) {
+      const error = new Error(
+        `El stock físico no puede quedar por debajo de las ${reservadas} unidades reservadas`
+      );
+      error.status = 409;
+      throw error;
     }
-    const result = await new sql.Request(tx)
-      .input("id_producto", sql.Int, id)
-      .input("nombre", sql.NVarChar(150), datos.nombre)
-      .input("descripcion", sql.NVarChar(500), datos.descripcion)
-      .input("codigo", sql.NVarChar(50), datos.codigo)
-      .input("precio", sql.Decimal(10, 2), datos.precio)
-      .input("imagen_1", sql.VarChar(sql.MAX), datos.imagen_1)
-      .input("imagen_2", sql.VarChar(sql.MAX), datos.imagen_2)
-      .input("stock_actual", sql.Int, datos.stock_actual)
-      .input("stock_minimo", sql.Int, datos.stock_minimo)
-      .input("id_categoria", sql.Int, datos.id_categoria)
-      .input("estado", sql.Bit, datos.estado)
-      .query(`
-      update productos
-      set nombre = @nombre,
-          descripcion = @descripcion,
-          codigo = @codigo,
-          precio = @precio,
-          imagen_1 = @imagen_1,
-          imagen_2 = @imagen_2,
-          stock_actual = @stock_actual,
-          stock_minimo = @stock_minimo,
-          id_categoria = @id_categoria,
-          estado = @estado
-      output inserted.*
-      where id_producto = @id_producto
-    `);
-    await tx.commit();
-    return result.recordset[0];
-  } catch (error) {
-    await tx.rollback().catch(() => {});
-    throw error;
-  }
+
+    const anterior = documento.data();
+    const normalizadoAnterior = normalizarTexto(anterior.codigo);
+    const refAnterior = referenciaClaveUnica(`producto_codigo:${normalizadoAnterior}`);
+    const refNueva = referenciaClaveUnica(`producto_codigo:${normalizado}`);
+    const [claveAnterior, claveNueva] = await Promise.all([
+      tx.get(refAnterior),
+      tx.get(refNueva),
+    ]);
+
+    if (
+      claveNueva.exists &&
+      Number(claveNueva.data().id) !== Number(idReal)
+    ) {
+      const error = new Error("La clave ya est� registrada");
+      error.code = "DUPLICADO";
+      throw error;
+    }
+
+    if (normalizadoAnterior !== normalizado) {
+      if (claveAnterior.exists) tx.delete(refAnterior);
+      tx.set(refNueva, {
+        clave: normalizado,
+        id: Number(idReal),
+        actualizado_en: new Date(),
+      });
+    }
+
+    const cambios = {
+      ...documentoProducto(idReal, datos),
+      fecha_creacion: anterior.fecha_creacion || new Date(),
+    };
+
+    tx.set(documento.ref, cambios, { merge: true });
+    actualizado = mapearProducto(
+      {
+        id: documento.id,
+        data: () => ({ ...anterior, ...cambios }),
+      },
+      new Map([[idReal, reservadas]])
+    );
+  });
+
+  return actualizado;
 };
 
-// Elimina un producto por ID utilizando un parámetro SQL
 const eliminarProducto = async (id) => {
-  const pool = await getPool();
-  const result = await pool
-    .request()
-    .input("id_producto", sql.Int, id)
-    .query("delete from productos where id_producto = @id_producto");
-  return result.rowsAffected[0];
+  let eliminado = false;
+
+  await db().runTransaction(async (tx) => {
+    const documento = await resolverDocumentoEnTransaccion(
+      tx,
+      COLECCIONES.productos,
+      "id_producto",
+      id
+    );
+    if (!documento) return;
+
+    const data = documento.data();
+    await liberarClaveUnica(
+      tx,
+      `producto_codigo:${normalizarTexto(data.codigo)}`
+    );
+    tx.delete(documento.ref);
+    eliminado = true;
+  });
+
+  return eliminado ? 1 : 0;
 };
 
 module.exports = {
@@ -216,4 +290,5 @@ module.exports = {
   crearProducto,
   actualizarProducto,
   eliminarProducto,
+  mapearProducto,
 };

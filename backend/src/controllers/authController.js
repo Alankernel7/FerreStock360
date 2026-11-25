@@ -41,7 +41,8 @@ const login = async (req, res) => {
       return res.status(403).json({ ok: false, message: "Este usuario se encuentra inactivo" });
     }
 
-    const passwordCorrecta = await bcrypt.compare(password, usuario.password);
+    const passwordCorrecta = typeof usuario.password === "string" &&
+      await bcrypt.compare(password, usuario.password);
     if (!passwordCorrecta) {
       return res.status(401).json({ ok: false, message: "Correo o contraseña incorrectos" });
     }

@@ -1,34 +1,16 @@
-const { cert, getApps, initializeApp } = require("firebase-admin/app");
+const { obtenerApp, obtenerDb, FieldValue } = require("../config/firebase");
 const { getAuth } = require("firebase-admin/auth");
-const { getFirestore, FieldValue } = require("firebase-admin/firestore");
-const { createHash } = require("node:crypto");
+const { hashNumerico, idNumericoDocumento, siguienteId, COLECCIONES } = require("../config/firestore");
 
 function app() {
-  const projectId = process.env.FIREBASE_PROJECT_ID;
-  if (!projectId) throw fallo(503, "Configura FIREBASE_PROJECT_ID en la API.");
-  return (
-    getApps().find((a) => a.name === "ferrestock") ||
-    initializeApp(
-      process.env.FIREBASE_SERVICE_ACCOUNT_JSON
-        ? { projectId, credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON)) }
-        : { projectId },
-      "ferrestock"
-    )
-  );
+  return obtenerApp();
 }
-const db = () => getFirestore(app());
+const db = () => obtenerDb();
 function fallo(status, message) {
   return Object.assign(new Error(message), { status });
 }
-// La web usa identificadores numéricos y los favoritos móviles conservan el ID original.
-function numero(id) {
-  return (
-    parseInt(
-      createHash("sha256").update(String(id)).digest("hex").slice(0, 12),
-      16,
-    ) || 1
-  );
-}
+// Conserva identificadores estables al normalizar los documentos históricos.
+function numero(id) { return hashNumerico(id); }
 function fecha(valor) {
   if (valor?.toDate) return valor.toDate().toISOString();
   return typeof valor === "string" ? valor : null;
@@ -53,21 +35,38 @@ async function principal(req, crear = false) {
       throw fallo(401, "Sesión inválida o vencida.");
     throw e;
   }
-  const ref = db().collection("users").doc(identidad.uid);
+  const ref = db().collection(COLECCIONES.usuarios).doc(identidad.uid);
   let perfil = (await ref.get()).data();
   if (!perfil && crear) {
+    const correo = String(identidad.email || "").trim().toLowerCase();
+    const coincidentes = correo
+      ? await db().collection(COLECCIONES.usuarios).where("email", "==", correo).get()
+      : { docs: [] };
+    const heredado = identidad.email_verified && coincidentes.docs.length === 1
+      ? coincidentes.docs[0].data()
+      : null;
+    const idUsuario = Number(heredado?.id_usuario) || await siguienteId(
+      "usuarios", COLECCIONES.usuarios, "id_usuario"
+    );
+    const rol = Number(heredado?.id_rol) === 1 || heredado?.rol === "admin"
+      ? "admin"
+      : String(heredado?.rol || "usuario");
     const nuevo = {
       uid: identidad.uid,
-      email: identidad.email || "",
-      nombre: identidad.name || identidad.email?.split("@")[0] || "Cliente",
-      rol: "usuario",
-      estado: "activo",
+      id_usuario: idUsuario,
+      email: correo,
+      nombre: heredado?.nombre || identidad.name || identidad.email?.split("@")[0] || "Cliente",
+      rol,
+      id_rol: Number(heredado?.id_rol) || (rol === "admin" ? 1 : 2),
+      estado: heredado?.estado === false || heredado?.estado === "inactivo" ? "inactivo" : "activo",
       proveedor:
         identidad.firebase.sign_in_provider === "google.com"
           ? "google"
           : "password",
-      fecha_creacion: FieldValue.serverTimestamp(),
+      fecha_creacion: heredado?.fecha_creacion || FieldValue.serverTimestamp(),
       foto_url: identidad.picture || null,
+      legacy_linked: Boolean(heredado),
+      legacy_user_id: heredado ? idUsuario : null,
     };
     try {
       await ref.create(nuevo);
@@ -77,14 +76,62 @@ async function principal(req, crear = false) {
       perfil = (await ref.get()).data();
     }
   }
-  if (perfil?.estado !== "activo")
+  // Vincula una cuenta heredada solo cuando Firebase declara verificado el
+  // correo y existe exactamente un perfil antiguo sin UID. No se copia su hash.
+  if (perfil && identidad.email_verified && !perfil.legacy_linked && identidad.email) {
+    const antiguos = await db().collection(COLECCIONES.usuarios)
+      .where("email", "==", String(identidad.email).trim().toLowerCase()).get();
+    const candidatos = antiguos.docs.filter((d) => d.id !== identidad.uid && !d.data().uid);
+    if (candidatos.length === 1) {
+      const legado = candidatos[0].data();
+      const rol = legado.rol === "admin" || Number(legado.id_rol) === 1
+        ? "admin"
+        : String(legado.rol || "usuario");
+      perfil = {
+        ...perfil,
+        id_usuario: Number(legado.id_usuario) || perfil.id_usuario,
+        nombre: legado.nombre || perfil.nombre,
+        id_rol: Number(legado.id_rol) || (rol === "admin" ? 1 : 2),
+        rol,
+        estado: legado.estado === false || legado.estado === "inactivo" ? "inactivo" : perfil.estado,
+        legacy_linked: true,
+        legacy_user_id: Number(legado.id_usuario) || null,
+      };
+      await ref.set({ ...perfil, vinculado_en: FieldValue.serverTimestamp() }, { merge: true });
+    }
+  }
+  if (perfil && !(Number(perfil.id_usuario) > 0)) {
+    const collection = db().collection(COLECCIONES.usuarios);
+    const counter = db().collection(COLECCIONES.contadores).doc("usuarios");
+    await db().runTransaction(async (tx) => {
+      const [actual, contador, todos] = await Promise.all([
+        tx.get(ref), tx.get(counter), tx.get(collection),
+      ]);
+      if (!actual.exists || Number(actual.data().id_usuario) > 0) return;
+      const maximo = todos.docs.reduce((max, doc) => Math.max(max, Number(doc.data().id_usuario) || 0), 0);
+      let nuevo = Math.max(maximo, Number(contador.data()?.valor) || 0) + 1;
+      while ((await tx.get(collection.doc(String(nuevo)))).exists) nuevo += 1;
+      tx.set(counter, { valor: nuevo, actualizado_en: new Date() }, { merge: true });
+      tx.update(ref, { id_usuario: nuevo, id_rol: Number(actual.data().id_rol) || (actual.data().rol === "admin" ? 1 : 2) });
+      perfil.id_usuario = nuevo;
+    });
+    perfil = (await ref.get()).data();
+  }
+  if (!perfil || perfil.estado === "inactivo" || perfil.estado === false)
     throw fallo(403, "La cuenta no está activa.");
   return {
     uid: identidad.uid,
-    id_usuario: numero(identidad.uid),
+    id_usuario: Number(perfil.id_usuario) || numero(identidad.uid),
     nombre: perfil.nombre,
     email: identidad.email || "",
-    rol: perfil.rol === "admin" ? "admin" : "cliente",
+    rol: perfil.rol === "admin" || Number(perfil.id_rol) === 1
+      ? "admin"
+      : perfil.rol === "empleado" ? "empleado" : "cliente",
+    rol_perfil: perfil.rol || "usuario",
+    estado: perfil.estado,
+    foto_url: perfil.foto_url || identidad.picture || null,
+    proveedor: perfil.proveedor || "password",
+    fecha_creacion: fecha(perfil.fecha_creacion),
   };
 }
 async function admin(req) {
@@ -96,7 +143,7 @@ async function admin(req) {
 function producto(snap) {
   const p = snap.data();
   return {
-    id_producto: numero(snap.id),
+    id_producto: idNumericoDocumento(snap, "id_producto"),
     firestore_id: snap.id,
     codigo: p.codigo,
     nombre: p.nombre,

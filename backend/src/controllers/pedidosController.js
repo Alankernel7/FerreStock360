@@ -1,4 +1,4 @@
-const service = require("../services/pedidosService");
+const service = require("../services/pedidosFirestoreService");
 
 const idUsuario = (req) => Number(req.usuario.id_usuario);
 const fechaValida = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
@@ -13,7 +13,7 @@ const errorResponse = (res, error) => {
 const fechasRetiro = (_req, res) => res.json({ ok: true, data: service.obtenerFechasRetiro() });
 
 const listarMios = async (req, res) => {
-  try { return res.json({ ok: true, data: await service.listarMisPedidos(idUsuario(req), String(req.query.estado || "todos")) }); }
+  try { return res.json({ ok: true, data: await service.listarMisPedidos(idUsuario(req), String(req.query.estado || "todos"), req.usuario.uid) }); }
   catch (error) { return errorResponse(res, error); }
 };
 
@@ -21,7 +21,7 @@ const detalleMio = async (req, res) => {
   const idPedido = Number(req.params.id);
   if (!Number.isSafeInteger(idPedido) || idPedido < 1) return res.status(400).json({ ok: false, message: "Pedido no válido." });
   try {
-    const pedido = await service.obtenerPedido({ idPedido, idUsuario: idUsuario(req) });
+    const pedido = await service.obtenerPedido({ idPedido, idUsuario: idUsuario(req), uid: req.usuario.uid });
     return pedido ? res.json({ ok: true, data: pedido }) : res.status(404).json({ ok: false, message: "No se encontró el pedido." });
   } catch (error) { return errorResponse(res, error); }
 };
@@ -53,7 +53,7 @@ const cambiarEstado = async (req, res) => {
   const idPedido = Number(req.params.id);
   if (!Number.isSafeInteger(idPedido) || idPedido < 1) return res.status(400).json({ ok: false, message: "Pedido no válido." });
   try {
-    const pedido = await service.cambiarEstadoPedido({ idPedido, idUsuario: idUsuario(req), accion: req.body.accion, motivo: req.body.motivo });
+    const pedido = await service.cambiarEstadoPedido({ idPedido, idUsuario: idUsuario(req), uid: req.usuario.uid, usuario: req.usuario, accion: req.body.accion, motivo: req.body.motivo });
     return res.json({ ok: true, data: pedido });
   } catch (error) { return errorResponse(res, error); }
 };

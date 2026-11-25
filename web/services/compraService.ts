@@ -21,9 +21,9 @@ async function solicitud<T>(ruta: string, opciones: RequestInit = {}): Promise<T
   }
 
   const texto = await response.text();
-  let resultado: { data?: T; message?: string; diagnostico?: { code: string | null; number: number | null; original: string } } = {};
+  let resultado: { data?: T; message?: string; diagnostico?: { code: string | null; original: string } } = {};
   try {
-    resultado = texto ? JSON.parse(texto) as { data?: T; message?: string; diagnostico?: { code: string | null; number: number | null; original: string } } : {};
+    resultado = texto ? JSON.parse(texto) as { data?: T; message?: string; diagnostico?: { code: string | null; original: string } } : {};
   } catch {
     // Algunos errores de proxy o del servidor llegan como HTML en vez de JSON.
   }
@@ -31,7 +31,7 @@ async function solicitud<T>(ruta: string, opciones: RequestInit = {}): Promise<T
   if (!response.ok) {
     if (resultado.message) {
       const diagnostico = process.env.NODE_ENV !== "production" && resultado.diagnostico
-        ? ` [SQL ${resultado.diagnostico.number ?? resultado.diagnostico.code ?? "error"}: ${resultado.diagnostico.original}]`
+        ? ` [Firestore ${resultado.diagnostico.code ?? "error"}: ${resultado.diagnostico.original}]`
         : "";
       throw new Error(`${resultado.message}${diagnostico}`);
     }

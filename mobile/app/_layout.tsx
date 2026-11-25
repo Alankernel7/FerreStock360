@@ -9,7 +9,7 @@ import { colors } from "../src/constants/colors";
 const RUTAS_AUTH = ["login", "register"];
 
 /** Rutas privadas que requieren sesión activa. */
-const RUTAS_PRIVADAS = ["favoritos", "perfil", "historial", "compras"];
+const RUTAS_PRIVADAS = ["carrito", "checkout", "pedido", "perfil", "historial", "compras"];
 
 function NavegadorRaiz() {
   const { usuario, cargandoSesion, registrando } = useAuth();

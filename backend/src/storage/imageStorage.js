@@ -19,7 +19,8 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
-const DRIVER = (process.env.STORAGE_DRIVER || "local").toLowerCase();
+const { obtenerBucket } = require("../config/firebase");
+const DRIVER = (process.env.STORAGE_DRIVER || (process.env.VERCEL ? "firebase" : "local")).toLowerCase();
 
 const PREFIJO_PUBLICO = "/uploads/products";
 
@@ -49,7 +50,7 @@ const asegurarDirectorio = () => {
 // en SQL Server. El nombre lo genera el servidor: nunca se usa el nombre
 // enviado por el usuario.
 const guardarImagen = async ({ buffer, mimetype }) => {
-  if (DRIVER !== "local") {
+  if (!["local", "firebase"].includes(DRIVER)) {
     throw new Error(
       `STORAGE_DRIVER="${DRIVER}" no está implementado. Use "local" o agregue un controlador compatible.`
     );
@@ -65,12 +66,25 @@ const guardarImagen = async ({ buffer, mimetype }) => {
     throw new Error("El contenido de la imagen está vacío");
   }
 
-  asegurarDirectorio();
-
   const nombre = `producto-${Date.now()}-${crypto.randomUUID()}${extension}`;
-  const destino = path.join(DIRECTORIO_LOCAL, nombre);
+  if (DRIVER === "firebase") {
+    const token = crypto.randomUUID();
+    const bucket = obtenerBucket();
+    const objeto = bucket.file(`products/${nombre}`);
+    await objeto.save(buffer, {
+      resumable: false,
+      metadata: {
+        contentType: mimetype,
+        cacheControl: "public, max-age=31536000, immutable",
+        metadata: { firebaseStorageDownloadTokens: token },
+      },
+    });
+    const ruta = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(objeto.name)}?alt=media&token=${token}`;
+    return { nombre, ruta };
+  }
 
-  // flag "wx" evita sobrescribir un archivo existente.
+  asegurarDirectorio();
+  const destino = path.join(DIRECTORIO_LOCAL, nombre);
   await fs.promises.writeFile(destino, buffer, { flag: "wx" });
 
   return {
@@ -82,11 +96,30 @@ const guardarImagen = async ({ buffer, mimetype }) => {
 // Indica si la ruta corresponde al almacenamiento local administrado.
 // Las URL externas (http/https) o rutas heredadas de web/public no se tocan.
 const esRutaLocal = (ruta) =>
-  typeof ruta === "string" && ruta.startsWith(`${PREFIJO_PUBLICO}/`);
+  typeof ruta === "string" && (
+    ruta.startsWith(`${PREFIJO_PUBLICO}/`) ||
+    (ruta.startsWith("https://firebasestorage.googleapis.com/") && ruta.includes("/o/products%2F"))
+  );
 
 // Elimina un archivo local. Devuelve true solo si se eliminó.
 // Nunca elimina rutas externas ni permite salir del directorio de uploads.
 const eliminarImagen = async (ruta) => {
+  if (DRIVER === "firebase" && typeof ruta === "string" && ruta.startsWith("https://firebasestorage.googleapis.com/")) {
+    const bucket = obtenerBucket();
+    const url = new URL(ruta);
+    const encodedName = url.pathname.split("/o/")[1];
+    if (!encodedName || !url.pathname.includes(`/b/${bucket.name}/`)) return false;
+    const objectName = decodeURIComponent(encodedName);
+    if (!objectName.startsWith("products/") || !/^products\/producto-\d+-[0-9a-f-]{36}\.(jpg|png|webp)$/.test(objectName)) return false;
+    try {
+      await bucket.file(objectName).delete();
+      return true;
+    } catch (error) {
+      if (error.code === 404) return false;
+      throw error;
+    }
+  }
+
   if (DRIVER !== "local" || !esRutaLocal(ruta)) {
     return false;
   }

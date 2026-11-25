@@ -18,6 +18,8 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [estadisticas, setEstadisticas] = useState<EstadisticasPublicas | null>(null);
+  const [cargandoEstadisticas, setCargandoEstadisticas] = useState(true);
+  const [errorEstadisticas, setErrorEstadisticas] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState<string | null>(null);
@@ -25,8 +27,17 @@ export default function RegisterPage() {
   useEffect(() => {
     let activo = true;
     obtenerEstadisticasPublicas()
-      .then((data) => { if (activo) setEstadisticas(data); })
-      .catch((err) => console.error("No se pudieron cargar las estadísticas:", err));
+      .then((data) => {
+        if (activo) {
+          setEstadisticas(data);
+          setErrorEstadisticas(data === null);
+        }
+      })
+      .catch((err) => {
+        console.error("[registro] Falló la carga opcional de estadísticas:", err);
+        if (activo) setErrorEstadisticas(true);
+      })
+      .finally(() => { if (activo) setCargandoEstadisticas(false); });
     return () => { activo = false; };
   }, []);
 
@@ -60,12 +71,12 @@ export default function RegisterPage() {
     try {
       setCargando(true);
       await registrarUsuario(nombre, correo, password);
-      setMensaje("Cuenta creada correctamente. Redirigiendo al inicio de sesión...");
+      setMensaje("Cuenta creada. Revisa tu correo para verificarlo; ya puedes iniciar sesión.");
       setName("");
       setEmail("");
       setPassword("");
       setConfirmPassword("");
-      window.setTimeout(() => router.push("/login"), 1200);
+      window.setTimeout(() => router.push("/login"), 2200);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ocurrió un error al crear la cuenta.");
     } finally {
@@ -86,19 +97,16 @@ export default function RegisterPage() {
             FerreStock <span className="text-ferro-yellow">360</span>
           </h1>
           <p className="text-gray-400 text-lg">Tu ferretería, siempre contigo</p>
-          <div className="flex gap-8 mt-12">
+          <div className="grid grid-cols-2 gap-8 mt-12">
             <div className="text-center">
-              <p className="text-3xl font-bold text-ferro-yellow">{estadisticas ? estadisticas.total_productos : "—"}+</p>
+              <p className="text-3xl font-bold text-ferro-yellow" aria-live="polite" title={errorEstadisticas ? "Estadísticas temporalmente no disponibles" : undefined}>{estadisticas ? estadisticas.total_productos : "—"}</p>
               <p className="text-sm text-gray-400">Productos</p>
             </div>
             <div className="text-center">
-              <p className="text-3xl font-bold text-ferro-yellow">{estadisticas ? estadisticas.total_categorias : "—"}+</p>
+              <p className="text-3xl font-bold text-ferro-yellow" aria-live="polite" title={errorEstadisticas ? "Estadísticas temporalmente no disponibles" : undefined}>{estadisticas ? estadisticas.total_categorias : "—"}</p>
               <p className="text-sm text-gray-400">Categorías</p>
             </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold text-ferro-yellow">99%</p>
-              <p className="text-sm text-gray-400">Confianza</p>
-            </div>
+            {cargandoEstadisticas && <p className="sr-only" aria-live="polite">Cargando estadísticas públicas.</p>}
           </div>
         </div>
       </div>

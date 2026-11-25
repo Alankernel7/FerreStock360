@@ -613,12 +613,12 @@ function FilaProducto({
   onEditar: () => void;
   onEliminar: () => void;
 }) {
-  const agotado = producto.stock_actual <= 0;
+  const agotado = (producto.stock_actual ?? 0) <= 0;
   const inactivo = !producto.estado;
 
   const estado = agotado
     ? { texto: "Agotado", fondo: colors.badgeRojoBg, color: colors.dangerTexto }
-    : producto.stock_actual <= producto.stock_minimo
+    : (producto.stock_actual ?? 0) <= (producto.stock_minimo ?? 0)
       ? { texto: "Stock bajo", fondo: colors.badgeRojoBg, color: colors.dangerTexto }
       : {
           texto: "Disponible",

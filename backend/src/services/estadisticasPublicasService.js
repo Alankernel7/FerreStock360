@@ -1,25 +1,21 @@
-const { getPool } = require("../config/database");
+const {
+  COLECCIONES,
+  db,
+  aBooleano,
+} = require("../config/firestore");
 
 const obtenerEstadisticasPublicas = async () => {
-  const pool = await getPool();
+  const [productos, categorias] = await Promise.all([
+    db().collection(COLECCIONES.productos).get(),
+    db().collection(COLECCIONES.categorias).get(),
+  ]);
 
-  const result = await pool.request().query(`
-    SELECT
-      (
-        SELECT COUNT(*)
-        FROM productos
-        WHERE estado = 1
-      ) AS total_productos,
-
-      (
-        SELECT COUNT(*)
-        FROM categorias
-      ) AS total_categorias
-  `);
-
-  return result.recordset[0];
+  return {
+    total_productos: productos.docs.filter((documento) =>
+      aBooleano(documento.data().estado, true)
+    ).length,
+    total_categorias: categorias.size,
+  };
 };
 
-module.exports = {
-  obtenerEstadisticasPublicas,
-};
+module.exports = { obtenerEstadisticasPublicas };

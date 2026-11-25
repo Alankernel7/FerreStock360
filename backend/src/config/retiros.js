@@ -36,4 +36,4 @@ const validarFechaRetiro = (valor, ahora = new Date()) => {
   return valor;
 };
 
-module.exports = { ZONA_RETIRO, DIAS_RETIRO, fechasRetiroDisponibles, validarFechaRetiro };
+module.exports = { ZONA_RETIRO, DIAS_RETIRO, fechaLocalISO, fechasRetiroDisponibles, validarFechaRetiro };

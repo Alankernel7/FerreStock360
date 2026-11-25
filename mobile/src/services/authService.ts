@@ -4,6 +4,7 @@ import {
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
+  sendEmailVerification,
   updateProfile,
   type Auth,
   type User,
@@ -78,6 +79,10 @@ export async function registrarUsuario(
   } catch (error) {
     console.warn("[auth] No se pudo actualizar el displayName:", error);
   }
+
+  await sendEmailVerification(credencial.user).catch((error) => {
+    console.warn("[auth] No se pudo enviar el correo de verificación:", error);
+  });
 
   try {
     await crearPerfilUsuario(credencial.user, {

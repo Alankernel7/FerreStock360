@@ -25,9 +25,9 @@ const CartContext = createContext<CartContextValue | null>(null);
 
 const desdeProducto = (producto: Producto, cantidad: number): CarritoItem => ({
   id_producto: producto.id_producto, cantidad, nombre: producto.nombre, codigo: producto.codigo,
-  precio: Number(producto.precio), stock_actual: producto.stock_actual,
-  stock_disponible: producto.stock_disponible ?? producto.stock_actual,
-  maximo_carrito: producto.stock_disponible ?? producto.stock_actual,
+  precio: Number(producto.precio), stock_actual: 0,
+  stock_disponible: 0,
+  maximo_carrito: Number.MAX_SAFE_INTEGER,
   estado: producto.estado,
   imagen: producto.imagen_1 || producto.imagen_2 || null,
 });
@@ -127,10 +127,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     const actual = items.find((item) => item.id_producto === producto.id_producto);
     const siguiente = (actual?.cantidad || 0) + cantidad;
     if (!producto.estado) throw new Error("Este producto no está disponible.");
+    if (!producto.disponible && (producto.stock_disponible ?? producto.stock_actual ?? 0) < 1) {
+      throw new Error("Este producto no tiene unidades disponibles.");
+    }
     if (obtenerToken()) {
       setItems(await guardarItemCarrito(producto.id_producto, siguiente));
     } else {
-      if (siguiente > (producto.stock_disponible ?? producto.stock_actual)) throw new Error("La cantidad supera las existencias disponibles.");
       guardarInvitado([...items.filter((item) => item.id_producto !== producto.id_producto), desdeProducto(producto, siguiente)]);
     }
     } finally {

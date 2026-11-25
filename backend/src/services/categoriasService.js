@@ -1,94 +1,181 @@
-// Servicio de categorías.
-// Consulta, registra, actualiza y elimina categorías en SQL Server.
+const {
+  COLECCIONES,
+  db,
+  normalizarTexto,
+  siguienteId,
+  resolverDocumento,
+  resolverDocumentoEnTransaccion,
+  reclamarClaveUnica,
+  liberarClaveUnica,
+  referenciaClaveUnica,
+  idNumericoDocumento,
+} = require("../config/firestore");
 
-const { getPool, sql } = require("../config/database");
+const mapearCategoria = (documento) => {
+  const data = documento.data();
+  return {
+    id_categoria: idNumericoDocumento(documento, "id_categoria"),
+    nombre: data.nombre || "",
+    descripcion: data.descripcion ?? null,
+  };
+};
 
-// Consulta todas las categorías
 const obtenerCategorias = async () => {
-  const pool = await getPool();
-  const result = await pool.request().query("select * from categorias order by nombre");
-  return result.recordset;
+  const snapshot = await db().collection(COLECCIONES.categorias).get();
+  return snapshot.docs
+    .map(mapearCategoria)
+    .sort((a, b) => a.nombre.localeCompare(b.nombre));
 };
 
-// Consulta una categoría por ID
 const obtenerCategoriaPorId = async (id) => {
-  const pool = await getPool();
-  const result = await pool
-    .request()
-    .input("id_categoria", sql.Int, id)
-    .query("select * from categorias where id_categoria = @id_categoria");
-  return result.recordset[0];
+  const documento = await resolverDocumento(
+    COLECCIONES.categorias,
+    "id_categoria",
+    id
+  );
+  return documento ? mapearCategoria(documento) : undefined;
 };
 
-// Comprueba si ya existe una categoría con ese nombre.
-// Al editar se puede excluir la propia categoría para permitir conservar su nombre.
 const existeCategoriaPorNombre = async (nombre, excluirId = null) => {
-  const pool = await getPool();
-  const request = pool.request().input("nombre", sql.NVarChar(100), nombre);
+  const normalizado = normalizarTexto(nombre);
+  const snapshot = await db()
+    .collection(COLECCIONES.categorias)
+    .where("nombre_normalizado", "==", normalizado)
+    .get();
 
-  let consulta = "select id_categoria from categorias where nombre = @nombre";
+  const coincide = (documento) => {
+    if (excluirId === null || excluirId === undefined) return true;
+    return idNumericoDocumento(documento, "id_categoria") !== Number(excluirId);
+  };
 
-  if (excluirId) {
-    request.input("id_categoria", sql.Int, excluirId);
-    consulta += " and id_categoria <> @id_categoria";
-  }
+  if (snapshot.docs.some(coincide)) return true;
 
-  const result = await request.query(consulta);
-  return result.recordset.length > 0;
+  const todos = await db().collection(COLECCIONES.categorias).get();
+  return todos.docs.some(
+    (documento) =>
+      normalizarTexto(documento.data().nombre) === normalizado && coincide(documento)
+  );
 };
 
-// Cuenta los productos asociados a una categoría.
-// Se usa para impedir el borrado si compromete la integridad referencial.
 const contarProductosPorCategoria = async (id) => {
-  const pool = await getPool();
-  const result = await pool
-    .request()
-    .input("id_categoria", sql.Int, id)
-    .query("select count(*) as total from productos where id_categoria = @id_categoria");
-  return result.recordset[0].total;
+  const [porId, porAlias] = await Promise.all([
+    db().collection(COLECCIONES.productos).where("id_categoria", "==", Number(id)).get(),
+    db().collection(COLECCIONES.productos).where("categoria_id", "==", Number(id)).get(),
+  ]);
+  return new Set([...porId.docs, ...porAlias.docs].map((documento) => documento.id)).size;
 };
 
-// Inserta una nueva categoría utilizando parámetros SQL
 const crearCategoria = async (datos) => {
-  const pool = await getPool();
-  const result = await pool
-    .request()
-    .input("nombre", sql.NVarChar(100), datos.nombre)
-    .input("descripcion", sql.NVarChar(200), datos.descripcion || null)
-    .query(`
-      insert into categorias (nombre, descripcion)
-      output inserted.*
-      values (@nombre, @descripcion)
-    `);
-  return result.recordset[0];
+  const normalizado = normalizarTexto(datos.nombre);
+  const idCategoria = await siguienteId(
+    "categorias",
+    COLECCIONES.categorias,
+    "id_categoria"
+  );
+
+  await db().runTransaction(async (tx) => {
+    await reclamarClaveUnica(tx, `categoria_nombre:${normalizado}`, idCategoria);
+    tx.set(db().collection(COLECCIONES.categorias).doc(String(idCategoria)), {
+      id_categoria: idCategoria,
+      nombre: datos.nombre,
+      nombre_normalizado: normalizado,
+      descripcion: datos.descripcion || null,
+      fecha_creacion: new Date(),
+      actualizado_en: new Date(),
+    });
+  });
+
+  return {
+    id_categoria: idCategoria,
+    nombre: datos.nombre,
+    descripcion: datos.descripcion || null,
+  };
 };
 
-// Actualiza una categoría existente utilizando parámetros SQL
 const actualizarCategoria = async (id, datos) => {
-  const pool = await getPool();
-  const result = await pool
-    .request()
-    .input("id_categoria", sql.Int, id)
-    .input("nombre", sql.NVarChar(100), datos.nombre)
-    .input("descripcion", sql.NVarChar(200), datos.descripcion || null)
-    .query(`
-      update categorias
-      set nombre = @nombre,
-          descripcion = @descripcion
-      output inserted.*
-      where id_categoria = @id_categoria
-    `);
-  return result.recordset[0];
+  const normalizado = normalizarTexto(datos.nombre);
+  let actualizada = null;
+
+  await db().runTransaction(async (tx) => {
+    const documento = await resolverDocumentoEnTransaccion(
+      tx,
+      COLECCIONES.categorias,
+      "id_categoria",
+      id
+    );
+    if (!documento) return;
+
+    const anterior = documento.data();
+    const normalizadoAnterior = normalizarTexto(anterior.nombre);
+    const refAnterior = referenciaClaveUnica(`categoria_nombre:${normalizadoAnterior}`);
+    const refNueva = referenciaClaveUnica(`categoria_nombre:${normalizado}`);
+    const [claveAnterior, claveNueva] = await Promise.all([
+      tx.get(refAnterior),
+      tx.get(refNueva),
+    ]);
+
+    if (
+      claveNueva.exists &&
+      Number(claveNueva.data().id) !== Number(idNumericoDocumento(documento, "id_categoria"))
+    ) {
+      const error = new Error("La clave ya est� registrada");
+      error.code = "DUPLICADO";
+      throw error;
+    }
+
+    if (normalizadoAnterior !== normalizado) {
+      if (claveAnterior.exists) tx.delete(refAnterior);
+      tx.set(refNueva, {
+        clave: normalizado,
+        id: Number(idNumericoDocumento(documento, "id_categoria")),
+        actualizado_en: new Date(),
+      });
+    }
+
+    tx.set(
+      documento.ref,
+      {
+        id_categoria: idNumericoDocumento(documento, "id_categoria"),
+        nombre: datos.nombre,
+        nombre_normalizado: normalizado,
+        descripcion: datos.descripcion || null,
+        actualizado_en: new Date(),
+      },
+      { merge: true }
+    );
+
+    actualizada = {
+      id_categoria: idNumericoDocumento(documento, "id_categoria"),
+      nombre: datos.nombre,
+      descripcion: datos.descripcion || null,
+    };
+  });
+
+  return actualizada;
 };
 
-// Elimina una categoría por ID utilizando un parámetro SQL
 const eliminarCategoria = async (id) => {
-  const pool = await getPool();
-  const result = await pool
-    .request()
-    .input("id_categoria", sql.Int, id)
-    .query("delete from categorias where id_categoria = @id_categoria");
-  return result.rowsAffected[0];
+  let eliminada = false;
+
+  await db().runTransaction(async (tx) => {
+    const documento = await resolverDocumentoEnTransaccion(
+      tx,
+      COLECCIONES.categorias,
+      "id_categoria",
+      id
+    );
+    if (!documento) return;
+
+    const data = documento.data();
+    await liberarClaveUnica(
+      tx,
+      `categoria_nombre:${normalizarTexto(data.nombre)}`
+    );
+    tx.delete(documento.ref);
+    eliminada = true;
+  });
+
+  return eliminada ? 1 : 0;
 };
 
 module.exports = {
@@ -99,4 +186,5 @@ module.exports = {
   crearCategoria,
   actualizarCategoria,
   eliminarCategoria,
+  mapearCategoria,
 };

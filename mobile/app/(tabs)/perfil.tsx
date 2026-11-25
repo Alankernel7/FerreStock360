@@ -10,6 +10,7 @@ import {
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AppHeader from "../../src/components/AppHeader";
+import CartAccessButton from "../../src/components/CartAccessButton";
 import Banner from "../../src/components/Banner";
 import { apiConfigurada } from "../../src/services/operaciones";
 import PrimaryButton from "../../src/components/PrimaryButton";
@@ -89,7 +90,7 @@ export default function PerfilScreen() {
 
   return (
     <View style={styles.pantalla}>
-      <AppHeader />
+      <AppHeader><CartAccessButton /></AppHeader>
       <ScrollView contentContainerStyle={styles.contenido}>
         <View style={styles.circulo}>
           <Text style={styles.inicial}>{inicial}</Text>

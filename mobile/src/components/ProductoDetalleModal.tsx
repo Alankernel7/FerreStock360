@@ -22,23 +22,25 @@ type Props = {
   visible: boolean;
   /** Nombre de la categoría resuelto por el contenedor; vacío si no aplica. */
   categoriaNombre?: string;
-  favorito?: boolean;
-  /** Si se omite, el botón de favoritos no se muestra. */
-  onAlternarFavorito?: () => void;
   onCerrar: () => void;
 };
 
 type Disponibilidad = { texto: string; fondo: string; color: string };
 
 function calcularDisponibilidad(producto: Producto): Disponibilidad {
-  if (producto.stock_actual <= 0) {
+  if (producto.disponible !== undefined) {
+    return producto.disponible
+      ? { texto: "Disponible", fondo: colors.badgeVerdeBg, color: colors.badgeVerdeTexto }
+      : { texto: "Agotado", fondo: colors.badgeRojoBg, color: colors.dangerTexto };
+  }
+  if ((producto.stock_actual ?? 0) <= 0) {
     return {
       texto: "Agotado",
       fondo: colors.badgeRojoBg,
       color: colors.dangerTexto,
     };
   }
-  if (producto.stock_actual <= producto.stock_minimo) {
+  if ((producto.stock_actual ?? 0) <= (producto.stock_minimo ?? 0)) {
     return {
       texto: "Stock bajo",
       fondo: colors.badgeRojoBg,
@@ -79,15 +81,12 @@ function Dato({
 
 /**
  * Modal de detalle de producto. Muestra la información del producto
- * seleccionado en el catálogo (cargado desde Firestore) y permite
- * agregarlo o quitarlo de favoritos sin modificar sus datos.
+ * seleccionado en el catálogo y permite agregarlo al carrito compartido.
  */
 export default function ProductoDetalleModal({
   producto,
   visible,
   categoriaNombre = "",
-  favorito = false,
-  onAlternarFavorito,
   onCerrar,
 }: Props) {
   const bloqueo = useRef(false);
@@ -216,16 +215,14 @@ export default function ProductoDetalleModal({
                       valor={categoria}
                     />
                   )}
-                  <Dato
-                    icono="cube-outline"
-                    etiqueta="Stock actual"
-                    valor={String(producto.stock_actual)}
-                  />
-                  <Dato
-                    icono="alert-circle-outline"
-                    etiqueta="Stock mínimo"
-                    valor={String(producto.stock_minimo)}
-                  />
+                  {producto.disponible !== undefined ? (
+                    <Dato icono="cube-outline" etiqueta="Disponibilidad" valor={producto.disponible ? "Disponible" : "Agotado"} />
+                  ) : (
+                    <>
+                      <Dato icono="cube-outline" etiqueta="Stock actual" valor={String(producto.stock_actual)} />
+                      <Dato icono="alert-circle-outline" etiqueta="Stock mínimo" valor={String(producto.stock_minimo)} />
+                    </>
+                  )}
                   <Dato
                     icono="checkmark-circle-outline"
                     etiqueta="Estado"
@@ -249,16 +246,6 @@ export default function ProductoDetalleModal({
                   catch (e) { Alert.alert("Carrito", e instanceof Error ? e.message : "No se pudo reservar."); }
                   finally { bloqueo.current=false; setAgregando(false); }
                 }}/>}
-                {!!onAlternarFavorito && (
-                  <PrimaryButton
-                    titulo={
-                      favorito ? "Quitar de favoritos" : "Agregar a favoritos"
-                    }
-                    variante="contorno"
-                    icono={favorito ? "heart" : "heart-outline"}
-                    onPress={onAlternarFavorito}
-                  />
-                )}
                 <PrimaryButton titulo="Cerrar" onPress={onCerrar} />
               </View>
             </>

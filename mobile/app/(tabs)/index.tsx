@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AppFooter from "../../src/components/AppFooter";
 import AppHeader from "../../src/components/AppHeader";
+import CartAccessButton from "../../src/components/CartAccessButton";
 import Banner from "../../src/components/Banner";
 import Brand from "../../src/components/Brand";
 import CategoryChip from "../../src/components/CategoryChip";
@@ -31,6 +32,7 @@ export default function InicioScreen() {
   return (
     <View style={styles.pantalla}>
       <AppHeader>
+        <CartAccessButton />
         <Pressable
           onPress={() => router.push(usuario ? "/perfil" : "/login")}
           hitSlop={8}
